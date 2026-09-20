@@ -152,17 +152,26 @@ function buildMessages(snapshot, job, model) {
     return messages;
 }
 
+function buildChatCompletionsUrl(endpoint, defaultUrl = 'https://api.openai.com/v1') {
+    let ep = (endpoint || defaultUrl).trim();
+    if (!ep) ep = defaultUrl;
+    ep = ep.replace(/\/+$/, '');
+    if (ep.endsWith('/chat/completions')) return ep;
+    return ep + '/chat/completions';
+}
+
 // ─── Provider Adapters ───────────────────────────────────────────────────────
 
 const ADAPTERS = {};
 
 /**
  * OpenAI-compatible adapter.
- * Handles OpenAI, OpenRouter, any GGUF server, most open-source APIs.
+ * Handles OpenAI, OpenRouter, Chutes AI, any GGUF server, most open-source APIs.
  */
 ADAPTERS.openai_compatible = {
     async call({ model, messages, params, apiKey, endpoint, timeout }) {
-        const url = (endpoint || 'https://api.openai.com/v1') + '/chat/completions';
+        const defaultEp = model.provider === 'chutes' ? 'https://llm.chutes.ai/v1' : 'https://api.openai.com/v1';
+        const url = buildChatCompletionsUrl(endpoint || defaultEp, defaultEp);
         const body = {
             model: model.modelIdentifier,
             messages,
@@ -177,12 +186,14 @@ ADAPTERS.openai_compatible = {
         const t0 = Date.now();
         let response;
         try {
+            const headers = {
+                'Content-Type': 'application/json',
+            };
+            if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+
             response = await fetch(url, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${apiKey}`,
-                },
+                headers,
                 body: JSON.stringify(body),
                 signal: controller.signal,
             });
@@ -213,6 +224,8 @@ ADAPTERS.openai_compatible = {
         };
     },
 };
+
+ADAPTERS.chutes = ADAPTERS.openai_compatible;
 
 /**
  * Mock adapter — for testing without real API calls.

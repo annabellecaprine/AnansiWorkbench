@@ -174,6 +174,23 @@
             assert(false, 'Test K (AnansiForge Vault Persistence & Refinements)', e.message);
         }
 
+        // Test L: Chutes AI Provider & URL Path Normalization
+        try {
+            const url1 = WorkbenchUtils.buildChatCompletionsUrl('https://llm.chutes.ai/v1');
+            const url2 = WorkbenchUtils.buildChatCompletionsUrl('https://llm.chutes.ai/v1/');
+            const url3 = WorkbenchUtils.buildChatCompletionsUrl('https://llm.chutes.ai/v1/chat/completions');
+
+            assert(
+                url1 === 'https://llm.chutes.ai/v1/chat/completions' &&
+                url2 === 'https://llm.chutes.ai/v1/chat/completions' &&
+                url3 === 'https://llm.chutes.ai/v1/chat/completions',
+                'Test L (Chutes AI URL Path Normalization)',
+                'Normalized base URLs, trailing slashes, and full endpoint paths correctly.'
+            );
+        } catch (e) {
+            assert(false, 'Test L (Chutes AI URL Path Normalization)', e.message);
+        }
+
         const passes = results.filter(r => r.status === 'PASS').length;
         console.log(`%cSummary: ${passes}/${results.length} tests passed.`, 'font-weight: bold; color: #6366f1;');
         return results;

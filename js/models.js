@@ -6,6 +6,7 @@
     'use strict';
 
     const PROVIDERS = [
+        { id: 'chutes', label: 'Chutes AI (llm.chutes.ai)', defaultEndpoint: 'https://llm.chutes.ai/v1' },
         { id: 'openai_compatible', label: 'OpenAI-Compatible (default)' },
         { id: 'mock', label: 'Mock Provider (testing)' },
     ];
@@ -75,7 +76,7 @@
             titleEl.textContent = 'Edit Model';
             idEl.value = model.id;
             nameEl.value = model.name;
-            providerEl.value = model.provider;
+            providerEl.value = model.provider || 'openai_compatible';
             endpointEl.value = model.endpoint || '';
             identEl.value = model.modelIdentifier || '';
             keyEl.value = model.apiKey || '';
@@ -90,8 +91,8 @@
             titleEl.textContent = 'Add Model';
             idEl.value = '';
             nameEl.value = '';
-            providerEl.value = 'openai_compatible';
-            endpointEl.value = '';
+            providerEl.value = 'chutes';
+            endpointEl.value = 'https://llm.chutes.ai/v1';
             identEl.value = '';
             keyEl.value = '';
             tempEl.value = 0.9;
@@ -157,7 +158,6 @@
         if (statusBar) statusBar.innerHTML = '<span class="status-testing">Testing connection…</span>';
 
         try {
-            // Send a minimal request through the appropriate adapter
             const adapter = model.provider === 'mock' ? getMockAdapter() : getOpenAIAdapter();
             const result = await adapter({
                 model,
@@ -170,7 +170,11 @@
             if (statusBar) statusBar.innerHTML = `<span class="status-ok">✓ Connected — responded in ${result.latencyMs}ms</span>`;
             showToast(`${model.name}: Connection successful.`, 'success');
         } catch (err) {
-            if (statusBar) statusBar.innerHTML = `<span class="status-err">✗ ${WorkbenchUtils.escapeHtml(String(err.message).slice(0, 120))}</span>`;
+            let errMsg = err.message || String(err);
+            if (errMsg.includes('Failed to fetch')) {
+                errMsg = 'Failed to fetch (Check URL, CORS policy, or network connection)';
+            }
+            if (statusBar) statusBar.innerHTML = `<span class="status-err">✗ ${WorkbenchUtils.escapeHtml(errMsg.slice(0, 150))}</span>`;
             showToast(`${model.name}: Connection failed.`, 'error');
         }
     }
@@ -184,20 +188,27 @@
 
     function getOpenAIAdapter() {
         return async ({ model, messages, params, apiKey, endpoint, timeout }) => {
-            const url = (endpoint || 'https://api.openai.com/v1') + '/chat/completions';
+            const defaultEp = model.provider === 'chutes' ? 'https://llm.chutes.ai/v1' : 'https://api.openai.com/v1';
+            const url = WorkbenchUtils.buildChatCompletionsUrl(endpoint || defaultEp, defaultEp);
             const controller = new AbortController();
             const timer = setTimeout(() => controller.abort(), timeout);
             const t0 = Date.now();
             try {
+                const headers = { 'Content-Type': 'application/json' };
+                if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+
                 const res = await fetch(url, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+                    headers,
                     body: JSON.stringify({ model: model.modelIdentifier, messages, ...params, max_tokens: 5 }),
                     signal: controller.signal,
                 });
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                if (!res.ok) {
+                    const errText = await res.text().catch(() => '');
+                    throw new Error(`HTTP ${res.status}: ${errText.slice(0, 150) || res.statusText}`);
+                }
                 const data = await res.json();
-                return { text: data.choices?.[0]?.message?.content || '', modelUsed: data.model, tokensIn: null, tokensOut: null, latencyMs: Date.now() - t0 };
+                return { text: data.choices?.[0]?.message?.content || '', modelUsed: data.model || model.modelIdentifier, tokensIn: null, tokensOut: null, latencyMs: Date.now() - t0 };
             } finally {
                 clearTimeout(timer);
             }

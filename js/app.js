@@ -105,15 +105,19 @@
             if (parentVal && subtestVal) return parentVal + '\n\n' + subtestVal;
             return subtestVal || parentVal;
         }
-        if (mode === 'prepend') {
-            if (parentVal && subtestVal) return subtestVal + '\n\n' + parentVal;
-            return subtestVal || parentVal;
-        }
         // 'inherit' or default
         return subtestVal || parentVal;
     }
 
-    window.WorkbenchUtils = { escapeHtml, formatDate, formatDateTime, formatDuration, debounce, downloadJSON, downloadCSV, slugify, plural, computeContentHash, calculateEffectivePromptField };
+    function buildChatCompletionsUrl(endpoint, defaultUrl = 'https://api.openai.com/v1') {
+        let ep = (endpoint || defaultUrl).trim();
+        if (!ep) ep = defaultUrl;
+        ep = ep.replace(/\/+$/, '');
+        if (ep.endsWith('/chat/completions')) return ep;
+        return ep + '/chat/completions';
+    }
+
+    window.WorkbenchUtils = { escapeHtml, formatDate, formatDateTime, formatDuration, debounce, downloadJSON, downloadCSV, slugify, plural, computeContentHash, calculateEffectivePromptField, buildChatCompletionsUrl };
 
     // ─── Toast Notifications ─────────────────────────────────────────────────────
 
