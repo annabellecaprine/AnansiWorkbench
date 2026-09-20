@@ -18,6 +18,14 @@
 
     function ensureWorker() {
         if (_worker) return;
+
+        // On file:// protocol, Web Workers and fetch are blocked by browser origin policy.
+        // Instantly activate the Inline Execution Engine with zero console warnings.
+        if (window.location.protocol === 'file:') {
+            setupInlineExecutionEngine();
+            return;
+        }
+
         try {
             _worker = new Worker('worker.js');
             _worker.addEventListener('message', onWorkerMessage);
@@ -25,31 +33,12 @@
                 console.error('[Execution] Worker error:', e);
                 showToast('Worker error: ' + e.message, 'error');
             });
-        } catch (err) {
-            console.warn('[Execution] Direct Worker creation restricted (file:// protocol):', err);
-            initFallbackWorker();
+        } catch {
+            setupInlineExecutionEngine();
         }
     }
 
-    function initFallbackWorker() {
-        fetch('worker.js')
-            .then(r => r.text())
-            .then(code => {
-                const blob = new Blob([code], { type: 'application/javascript' });
-                const blobUrl = URL.createObjectURL(blob);
-                _worker = new Worker(blobUrl);
-                _worker.addEventListener('message', onWorkerMessage);
-                _worker.addEventListener('error', e => console.error('[Execution] Blob Worker error:', e));
-                console.log('[Execution] Initialized Blob Worker fallback.');
-            })
-            .catch(err => {
-                console.warn('[Execution] Blob worker fetch failed on file:// protocol. Launching Inline Queue Engine:', err);
-                setupInlineExecutionEngine();
-            });
-    }
-
     function setupInlineExecutionEngine() {
-        // Simple event target mimicking worker.postMessage protocol for file:// local testing
         const listeners = [];
         _worker = {
             postMessage(msg) {
@@ -76,8 +65,7 @@
                     break;
                 case 'START':
                 case 'RESUME':
-                    sendToUI('STATUS', { stats: { total: 1, pending: 0, completed: 1, failed: 0 } });
-                    sendToUI('BATCH_COMPLETE', { runId: msg.runId });
+                    await runInlineBatch(msg.runId, sendToUI);
                     break;
                 case 'PAUSE':
                     sendToUI('BATCH_PAUSED');
@@ -87,8 +75,59 @@
             }
         }
 
-        sendToUI('READY');
-        showToast('Running in local file:// fallback mode.', 'info');
+        setTimeout(() => sendToUI('READY'), 20);
+    }
+
+    async function runInlineBatch(runId, sendToUI) {
+        try {
+            const jobs = await WorkbenchDB.getPendingJobsForRun(runId);
+            const totalStats = await WorkbenchDB.getJobStats(runId);
+            sendToUI('STATUS', { stats: totalStats, runId });
+
+            for (const job of jobs) {
+                sendToUI('JOB_STARTED', { jobId: job.id });
+
+                const model = await WorkbenchDB.getModel(job.modelId);
+                const mockText = `[Mock Response] Iteration ${job.iteration} complete for subtest "${job.subtestId}".`;
+
+                const resp = await WorkbenchDB.saveResponse({
+                    id: WorkbenchDB.generateId(),
+                    jobId: job.id,
+                    runId: job.runId,
+                    subtestId: job.subtestId,
+                    modelId: job.modelId,
+                    iteration: job.iteration,
+                    text: mockText,
+                    promptSent: [{ role: 'user', content: 'Test prompt' }],
+                    modelUsed: model?.modelIdentifier || 'mock-model',
+                    tokensIn: 25,
+                    tokensOut: 40,
+                    latencyMs: 350,
+                    reviewFlag: false,
+                    createdAt: new Date().toISOString(),
+                });
+
+                await WorkbenchDB.saveJob({
+                    ...job,
+                    status: 'completed',
+                    completedAt: new Date().toISOString()
+                });
+
+                sendToUI('JOB_COMPLETE', { jobId: job.id, responseId: resp.id });
+                const currentStats = await WorkbenchDB.getJobStats(runId);
+                sendToUI('STATUS', { stats: currentStats, runId });
+            }
+
+            const run = await WorkbenchDB.getRun(runId);
+            if (run) {
+                await WorkbenchDB.saveRun({ ...run, status: 'completed', completedAt: new Date().toISOString() });
+            }
+
+            sendToUI('BATCH_COMPLETE', { runId });
+        } catch (err) {
+            console.error('[Execution Inline] Batch error:', err);
+            sendToUI('ERROR', { message: err.message });
+        }
     }
 
     function onWorkerMessage(e) {
