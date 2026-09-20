@@ -23,15 +23,35 @@
     renderUI();
   }
 
+  function matchesSubtab(asset, subtab) {
+    if (!subtab || subtab === 'all') return true;
+    const type = (asset.assetType || '').toLowerCase();
+    const st = subtab.toLowerCase();
+
+    if (st === 'projects' || st === 'project') {
+      return type === 'project' || type === 'projects';
+    }
+    if (st === 'characters' || st === 'character') {
+      return type === 'character' || type === 'characters' || type === 'bio';
+    }
+    if (st === 'scenarios' || st === 'scenario') {
+      return type === 'scenario' || type === 'scenarios';
+    }
+    if (st === 'universes' || st === 'universe') {
+      return type === 'universe' || type === 'universes';
+    }
+    return type === st;
+  }
+
   function renderUI() {
     const container = document.getElementById('tab-import');
     if (!container) return;
 
     // Count categories
-    const projects = _vaultAssets.filter(a => a.assetType === 'project');
-    const characters = _vaultAssets.filter(a => a.assetType === 'character');
-    const scenarios = _vaultAssets.filter(a => a.assetType === 'scenario');
-    const universes = _vaultAssets.filter(a => a.assetType === 'universe');
+    const projects = _vaultAssets.filter(a => matchesSubtab(a, 'projects'));
+    const characters = _vaultAssets.filter(a => matchesSubtab(a, 'characters'));
+    const scenarios = _vaultAssets.filter(a => matchesSubtab(a, 'scenarios'));
+    const universes = _vaultAssets.filter(a => matchesSubtab(a, 'universes'));
 
     container.innerHTML = `
       <div class="section-header">
@@ -154,7 +174,7 @@
 
   function getFilteredAssets() {
     return _vaultAssets.filter(asset => {
-      if (_subtab !== 'all' && asset.assetType !== _subtab) return false;
+      if (!matchesSubtab(asset, _subtab)) return false;
       if (_selectedUniverse !== 'all' && asset.universe !== _selectedUniverse) return false;
       if (_searchQuery) {
         const q = _searchQuery.toLowerCase();
