@@ -33,7 +33,7 @@
                 <button class="tab-btn" data-tab="review" role="tab">📋 Review</button>
                 <button class="tab-btn" data-tab="archive" role="tab">🗄 Archive</button>
                 <button class="tab-btn" data-tab="charts" role="tab">📊 Charts</button>
-                <button class="tab-btn" data-tab="import" role="tab">📥 Import</button>
+                <button class="tab-btn" data-tab="import" role="tab">🔥 AnansiForge</button>
                 <button class="tab-btn" data-tab="models" role="tab">🔌 Models</button>
             </nav>
 
@@ -366,6 +366,20 @@
             <div class="modal-footer">
                 <button class="btn" onclick="closeModal('modal-model')">Cancel</button>
                 <button class="btn btn-primary" id="model-form-save">Save Model</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── AnansiForge Asset Inspector Modal ────────────────────── -->
+    <div class="modal" id="modal-forge-asset" role="dialog" aria-modal="true" aria-labelledby="forge-asset-title">
+        <div class="modal-box modal-box-lg">
+            <div class="modal-header">
+                <span class="modal-title" id="forge-asset-title">Asset Inspector</span>
+                <button class="modal-close" onclick="closeModal('modal-forge-asset')">✕</button>
+            </div>
+            <div class="modal-body" id="forge-asset-content"></div>
+            <div class="modal-footer" id="forge-asset-footer">
+                <button class="btn" onclick="closeModal('modal-forge-asset')">Close</button>
             </div>
         </div>
     </div>

@@ -40,7 +40,7 @@
         });
     }
 
-    // ─── Init ─────────────────────────────────────────────────────────────────────
+    // ─── Init ────────────────────────────────────────────────────────────────     
 
     async function initDB() {
         if (dbInstance) return dbInstance;
@@ -115,6 +115,14 @@
                 if (!db.objectStoreNames.contains('charts')) {
                     const s = db.createObjectStore('charts', { keyPath: 'id' });
                     s.createIndex('experimentId', 'experimentId', { unique: false });
+                }
+
+                // 9. Forge Assets (AnansiForge Vault persistence)
+                if (!db.objectStoreNames.contains('forge_assets')) {
+                    const s = db.createObjectStore('forge_assets', { keyPath: 'id' });
+                    s.createIndex('category', 'category', { unique: false });
+                    s.createIndex('type', 'type', { unique: false });
+                    s.createIndex('name', 'name', { unique: false });
                 }
             };
 
@@ -614,6 +622,18 @@
         getCharts,
         saveChart,
         deleteChart,
+        // Forge Assets
+        getForgeAssets() { return getAll('forge_assets'); },
+        async saveForgeAssets(assets) {
+            for (const item of assets) {
+                if (!item.id) item.id = generateId();
+                await putOne('forge_assets', item);
+            }
+        },
+        clearForgeAssets() { return clearStore('forge_assets'); },
+        // Generic / Admin
+        getAll(storeName) { return getAll(storeName); },
+        putOne(storeName, value) { return putOne(storeName, value); },
         // Backup
         exportBackup,
         // Internals

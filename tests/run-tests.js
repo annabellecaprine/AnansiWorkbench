@@ -124,6 +124,18 @@
             assert(false, 'Test J (JSON Backup Export)', e.message);
         }
 
+        // Test K: AnansiForge Vault Persistence & Batch Creation
+        try {
+            await WorkbenchDB.saveForgeAssets([
+                { id: 'test_k_1', assetType: 'character', name: 'Test Persona K1', personality: 'Test prompt 1' },
+                { id: 'test_k_2', assetType: 'scenario', name: 'Test Scenario K2', scenario: 'Test scenario 2' }
+            ]);
+            const loaded = await WorkbenchDB.getForgeAssets();
+            assert(loaded.length >= 2, 'Test K (AnansiForge Vault Persistence)', 'Vault assets saved to IndexedDB forge_assets store.');
+        } catch (e) {
+            assert(false, 'Test K (AnansiForge Vault Persistence)', e.message);
+        }
+
         const passes = results.filter(r => r.status === 'PASS').length;
         console.log(`%cSummary: ${passes}/${results.length} tests passed.`, 'font-weight: bold; color: #6366f1;');
         return results;

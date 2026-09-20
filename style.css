@@ -1587,11 +1587,171 @@ textarea {
         padding: 14px;
     }
 
-    .review-sidebar {
-        display: none;
-    }
-
     .exec-side {
         display: none;
     }
+}
+
+/* ════════════════════════════════════════════════════════════
+   ANANSIFORGE MISSION CONTROL HUB STYLES
+   ════════════════════════════════════════════════════════════ */
+
+.subtab-nav {
+    display: flex;
+    gap: 4px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 16px;
+    padding-bottom: 2px;
+}
+
+.subtab-btn {
+    padding: 8px 16px;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--text-secondary);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: color 0.15s, border-color 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.subtab-btn:hover {
+    color: var(--text-primary);
+}
+
+.subtab-btn.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+}
+
+.subtab-count {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 1px 7px;
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.subtab-btn.active .subtab-count {
+    background: rgba(91, 115, 232, 0.2);
+    color: var(--text-accent);
+    border-color: rgba(91, 115, 232, 0.4);
+}
+
+.forge-table-container {
+    width: 100%;
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--bg-surface);
+}
+
+.forge-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    text-align: left;
+}
+
+.forge-table th {
+    background: var(--bg-elevated);
+    padding: 12px 14px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+}
+
+.forge-table td {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text-primary);
+    vertical-align: middle;
+}
+
+.forge-table tr:last-child td {
+    border-bottom: none;
+}
+
+.forge-table tr:hover td {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.forge-card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+}
+
+.forge-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    position: relative;
+}
+
+.forge-card:hover {
+    border-color: var(--border-focus);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.forge-card.selected {
+    border-color: var(--accent);
+    background: rgba(91, 115, 232, 0.04);
+}
+
+.forge-card-header {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.forge-card-body {
+    padding: 12px 14px;
+    flex: 1;
+    font-size: 12px;
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+
+.forge-card-footer {
+    padding: 10px 14px;
+    border-top: 1px solid var(--border);
+    background: var(--bg-elevated);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.batch-action-bar {
+    position: sticky;
+    bottom: 16px;
+    left: 0;
+    right: 0;
+    z-index: 90;
+    background: var(--bg-elevated);
+    border: 1px solid var(--accent);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    border-radius: var(--radius-md);
+    padding: 12px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 16px;
 }
