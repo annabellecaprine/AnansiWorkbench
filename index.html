@@ -773,11 +773,11 @@
             // Refresh model list when config tab is shown
             if (panelId === 'builder-tab-config') {
                 WorkbenchModels.getModels().then(models => {
-                    const exp = WorkbenchExperiments;
-                    // Re-render model checkboxes using current experiment defaults
+                    const checkedIds = [...document.querySelectorAll('input[name="exp-model"]:checked')].map(el => el.value);
                     const editingId = WorkbenchState?.selectedExperimentId;
-                    WorkbenchDB.getExperiment(editingId).then(expData => {
-                        const selected = expData?.defaultModels || [];
+                    const expPromise = editingId ? WorkbenchDB.getExperiment(editingId) : Promise.resolve(null);
+                    expPromise.then(expData => {
+                        const selected = checkedIds.length > 0 ? checkedIds : (expData?.defaultModels || []);
                         const container = document.getElementById('exp-model-checkboxes');
                         if (!container) return;
                         if (!models || models.length === 0) {
@@ -787,7 +787,7 @@
                         container.innerHTML = models.map(m =>
                             `<label class="checkbox-label">
               <input type="checkbox" name="exp-model" value="${m.id}" ${selected.includes(m.id) ? 'checked' : ''}>
-              ${m.name}
+              ${WorkbenchUtils.escapeHtml(m.name)}
             </label>`
                         ).join('');
                     });

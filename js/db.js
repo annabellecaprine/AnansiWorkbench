@@ -150,6 +150,7 @@
     }
 
     async function getOne(storeName, key) {
+        if (!key) return null;
         const db = dbInstance || await initDB();
         if (!db.objectStoreNames.contains(storeName)) return null;
         const tx = db.transaction(storeName, 'readonly');
@@ -165,6 +166,7 @@
     }
 
     async function deleteOne(storeName, key) {
+        if (!key) return;
         const db = dbInstance || await initDB();
         if (!db.objectStoreNames.contains(storeName)) return;
         const tx = db.transaction(storeName, 'readwrite');
