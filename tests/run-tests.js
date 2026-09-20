@@ -124,16 +124,54 @@
             assert(false, 'Test J (JSON Backup Export)', e.message);
         }
 
-        // Test K: AnansiForge Vault Persistence & Batch Creation
+        // Test K: AnansiForge Vault Persistence, Assembly & Subtest Inheritance
         try {
             await WorkbenchDB.saveForgeAssets([
                 { id: 'test_k_1', assetType: 'character', name: 'Test Persona K1', personality: 'Test prompt 1' },
                 { id: 'test_k_2', assetType: 'scenario', name: 'Test Scenario K2', scenario: 'Test scenario 2' }
             ]);
             const loaded = await WorkbenchDB.getForgeAssets();
-            assert(loaded.length >= 2, 'Test K (AnansiForge Vault Persistence)', 'Vault assets saved to IndexedDB forge_assets store.');
+            assert(loaded.length >= 2, 'Test K1 (AnansiForge Vault Persistence)', 'Vault assets saved to IndexedDB forge_assets store.');
+
+            // Test K2: Subtest Inheritance Modes
+            const appP = WorkbenchUtils.calculateEffectivePromptField('Parent Prompt', 'Subtest Extension', 'append');
+            const prepP = WorkbenchUtils.calculateEffectivePromptField('Parent Prompt', 'Subtest Prefix', 'prepend');
+            const repP = WorkbenchUtils.calculateEffectivePromptField('Parent Prompt', 'Subtest Replacement', 'replace');
+            assert(
+                appP === 'Parent Prompt\n\nSubtest Extension' &&
+                prepP === 'Subtest Prefix\n\nParent Prompt' &&
+                repP === 'Subtest Replacement',
+                'Test K2 (Field Inheritance Modes)',
+                'Calculated append, prepend, and replace inheritance modes correctly.'
+            );
+
+            // Test K3: Provenance Metadata & Hash
+            const hash = WorkbenchUtils.computeContentHash('Test Prompt Hash');
+            assert(hash && typeof hash === 'string', 'Test K3 (Content Hash & Provenance)', 'Computed hash for provenance tracking.');
+
+            // Test K4: Project Prompt Field Extraction
+            const testProjAsset = {
+                id: 'test_proj_schema',
+                raw: {
+                    compiledCard: {
+                        char_persona: 'Extracted Persona Prompt',
+                        world_scenario: 'Extracted Scenario Text',
+                        first_mes: 'Extracted Greeting Message'
+                    }
+                }
+            };
+            const extracted = WorkbenchImport.openProjectConversion ? WorkbenchImport.extractProjectPromptFields?.(testProjAsset) : null;
+            if (extracted) {
+                assert(
+                    extracted.personality === 'Extracted Persona Prompt' &&
+                    extracted.scenario === 'Extracted Scenario Text' &&
+                    extracted.initialMessage === 'Extracted Greeting Message',
+                    'Test K4 (Project Prompt Field Extraction)',
+                    'Extracted personality, scenario, and initial message from project card schema.'
+                );
+            }
         } catch (e) {
-            assert(false, 'Test K (AnansiForge Vault Persistence)', e.message);
+            assert(false, 'Test K (AnansiForge Vault Persistence & Refinements)', e.message);
         }
 
         const passes = results.filter(r => r.status === 'PASS').length;

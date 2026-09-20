@@ -384,6 +384,57 @@
         </div>
     </div>
 
+    <!-- ── AnansiForge Assembly Workspace Modal ────────────────────── -->
+    <div class="modal" id="modal-assembly-workspace" role="dialog" aria-modal="true"
+        aria-labelledby="assembly-workspace-title">
+        <div class="modal-box modal-box-xl"
+            style="max-width:960px; max-height:90vh; display:flex; flex-direction:column;">
+            <div class="modal-header">
+                <span class="modal-title" id="assembly-workspace-title">🧪 Custom Experiment Assembly Workspace</span>
+                <button class="modal-close" onclick="closeModal('modal-assembly-workspace')">✕</button>
+            </div>
+            <div class="modal-body" id="assembly-workspace-content" style="flex:1; overflow-y:auto; padding:16px;">
+            </div>
+            <div class="modal-footer" id="assembly-workspace-footer">
+                <button class="btn" onclick="closeModal('modal-assembly-workspace')">Cancel</button>
+                <button class="btn btn-primary" onclick="WorkbenchImport.confirmAssemblyWorkspace()">⚡ Confirm & Create
+                    Experiment</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── AnansiForge Complete Project Conversion Modal ────────────── -->
+    <div class="modal" id="modal-project-conversion" role="dialog" aria-modal="true"
+        aria-labelledby="project-conversion-title">
+        <div class="modal-box modal-box-lg">
+            <div class="modal-header">
+                <span class="modal-title" id="project-conversion-title">📦 Convert AnansiForge Project</span>
+                <button class="modal-close" onclick="closeModal('modal-project-conversion')">✕</button>
+            </div>
+            <div class="modal-body" id="project-conversion-content"></div>
+            <div class="modal-footer" id="project-conversion-footer">
+                <button class="btn" onclick="closeModal('modal-project-conversion')">Cancel</button>
+                <button class="btn btn-primary" onclick="WorkbenchImport.confirmProjectConversion()">⚡ Convert to
+                    Workbench Experiment</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── AnansiForge Reimport Conflict Resolution Modal ──────────── -->
+    <div class="modal" id="modal-reimport-conflict" role="dialog" aria-modal="true"
+        aria-labelledby="reimport-conflict-title">
+        <div class="modal-box modal-box-md">
+            <div class="modal-header">
+                <span class="modal-title" id="reimport-conflict-title">⚠️ Reimport Conflict Detected</span>
+                <button class="modal-close" onclick="closeModal('modal-reimport-conflict')">✕</button>
+            </div>
+            <div class="modal-body" id="reimport-conflict-content"></div>
+            <div class="modal-footer" id="reimport-conflict-footer">
+                <button class="btn" onclick="closeModal('modal-reimport-conflict')">Close</button>
+            </div>
+        </div>
+    </div>
+
     <!-- ── Experiment Builder Modal ────────────────────────────── -->
     <div class="modal" id="modal-builder" role="dialog" aria-modal="true" aria-labelledby="builder-modal-title">
         <div class="modal-box modal-builder-box">

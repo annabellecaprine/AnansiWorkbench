@@ -378,12 +378,34 @@ pre {
     margin-bottom: 16px;
 }
 
-.form-group label {
+.form-group>label:not(.radio-label):not(.checkbox-label) {
     font-size: 12px;
     font-weight: 600;
     color: var(--text-secondary);
     text-transform: uppercase;
     letter-spacing: .5px;
+}
+
+.radio-label {
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 12px;
+    font-size: 13px;
+    color: var(--text-primary);
+    cursor: pointer;
+    text-transform: none;
+    letter-spacing: normal;
+    width: 100%;
+}
+
+.radio-label input[type="radio"] {
+    width: 18px;
+    height: 18px;
+    margin-top: 2px;
+    flex-shrink: 0;
+    cursor: pointer;
+    accent-color: var(--accent);
 }
 
 .form-row {
@@ -1754,4 +1776,138 @@ textarea {
     align-items: center;
     justify-content: space-between;
     margin-top: 16px;
+}
+
+/* ── Assembly Workspace & Refinement Styles ─────────────────── */
+.modal-box-xl {
+    width: 95vw;
+    max-width: 1040px;
+}
+
+.assembly-section {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 14px;
+    margin-bottom: 14px;
+}
+
+.assembly-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+}
+
+.assembly-section-title {
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.assembly-item-card {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    transition: background 0.15s;
+}
+
+.assembly-item-card:hover {
+    border-color: var(--border-focus);
+}
+
+.assembly-drag-handle {
+    cursor: grab;
+    color: var(--text-muted);
+    font-size: 14px;
+    padding: 2px 4px;
+}
+
+.assembly-item-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.assembly-item-title {
+    font-weight: 600;
+    font-size: 13px;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.assembly-item-meta {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+.assembly-warning-box {
+    background: rgba(245, 158, 11, 0.08);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    border-radius: var(--radius-md);
+    padding: 12px 16px;
+    margin-bottom: 14px;
+    color: var(--text-primary);
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+.assembly-warning-title {
+    font-weight: 700;
+    color: var(--warning, #f59e0b);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+}
+
+.assembly-preview-tabs {
+    display: flex;
+    gap: 4px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 12px;
+}
+
+.assembly-preview-tab {
+    padding: 6px 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+}
+
+.assembly-preview-tab.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+}
+
+.assembly-preview-body {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 12px;
+    font-family: var(--font-mono, monospace);
+    font-size: 12px;
+    color: var(--text-secondary);
+    white-space: pre-wrap;
+    max-height: 240px;
+    overflow-y: auto;
 }

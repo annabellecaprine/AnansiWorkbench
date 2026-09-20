@@ -160,14 +160,19 @@
       <!-- Floating Batch Action Bar -->
       <div id="forge-batch-bar" class="batch-action-bar" style="display:${_selectedIds.size > 0 ? 'flex' : 'none'};">
         <div class="flex-row align-center gap-md">
-          <span style="font-weight:700; font-size:14px; color:var(--text-primary);">
+          <span id="forge-selected-count" style="font-weight:700; font-size:14px; color:var(--text-primary);">
             ⚡ ${_selectedIds.size} Asset${_selectedIds.size === 1 ? '' : 's'} Selected
           </span>
           <button class="btn btn-sm" onclick="WorkbenchImport.selectAllFiltered(false)">Deselect All</button>
         </div>
-        <button class="btn btn-primary" onclick="WorkbenchImport.batchCreateExperiments()">
-          ⚡ Convert Selected (${_selectedIds.size}) to Experiments
-        </button>
+        <div class="flex-row align-center gap-sm">
+          <button class="btn btn-sm btn-primary" onclick="WorkbenchImport.openAssemblyWorkspace()">
+            🧪 Custom Assembly Workspace (Workflow A)
+          </button>
+          <button class="btn btn-sm btn-secondary" onclick="WorkbenchImport.createBulkSubtestExperiment()">
+            ⚡ One Subtest Per Asset (Bulk Mode B)
+          </button>
+        </div>
       </div>
     `;
   }
@@ -325,14 +330,23 @@
     renderAssetView();
   }
 
+  function updateBatchBar() {
+    const batchBar = document.getElementById('forge-batch-bar');
+    if (!batchBar) return;
+    const count = _selectedIds.size;
+    batchBar.style.display = count > 0 ? 'flex' : 'none';
+
+    const countSpan = document.getElementById('forge-selected-count');
+    if (countSpan) {
+      countSpan.textContent = `⚡ ${count} Asset${count === 1 ? '' : 's'} Selected`;
+    }
+  }
+
   function toggleSelect(id, checked) {
     if (checked) _selectedIds.add(id);
     else _selectedIds.delete(id);
 
-    const batchBar = document.getElementById('forge-batch-bar');
-    if (batchBar) {
-      batchBar.style.display = _selectedIds.size > 0 ? 'flex' : 'none';
-    }
+    updateBatchBar();
     renderAssetView();
   }
 
@@ -375,6 +389,139 @@
     input.click();
   }
 
+  function extractProjectPromptFields(asset, mode = 'compiled') {
+    if (!asset) return { personality: '', scenario: '', initialMessage: '' };
+
+    const raw = asset.raw || asset;
+
+    const parseIfJson = (val) => {
+      if (!val) return null;
+      if (typeof val === 'object') return val;
+      if (typeof val === 'string' && (val.trim().startsWith('{') || val.trim().startsWith('['))) {
+        try { return JSON.parse(val); } catch (e) { return null; }
+      }
+      return null;
+    };
+
+    const candidateObjects = [];
+    const addCandidate = (obj) => {
+      if (!obj) return;
+      if (typeof obj === 'string') {
+        const parsed = parseIfJson(obj);
+        if (parsed && typeof parsed === 'object' && !candidateObjects.includes(parsed)) {
+          candidateObjects.push(parsed);
+        }
+        return;
+      }
+      if (typeof obj === 'object' && !candidateObjects.includes(obj)) {
+        candidateObjects.push(obj);
+        if (obj.data) addCandidate(obj.data);
+        if (obj.compiledCard) addCandidate(obj.compiledCard);
+        if (obj.card) addCandidate(obj.card);
+        if (obj.characterCard) addCandidate(obj.characterCard);
+        if (obj.character) addCandidate(obj.character);
+        if (obj.bot) addCandidate(obj.bot);
+      }
+    };
+
+    if (mode !== 'reassembled') {
+      addCandidate(asset);
+      addCandidate(raw);
+    }
+
+    const pick = (keys) => {
+      for (const cand of candidateObjects) {
+        if (!cand || typeof cand !== 'object') continue;
+        for (const k of keys) {
+          const val = cand[k];
+          if (val && typeof val === 'string' && val.trim()) {
+            return val.trim();
+          }
+        }
+      }
+      return '';
+    };
+
+    const personalityKeys = [
+      'personality', 'system_prompt', 'systemPrompt', 'char_persona', 'charPersona',
+      'personality_prompt', 'prompt', 'description', 'content', 'bio', 'persona', 'details', 'system'
+    ];
+    const scenarioKeys = [
+      'scenario', 'world_scenario', 'worldScenario', 'scenario_prompt', 'scenarioText', 'world'
+    ];
+    const initialMessageKeys = [
+      'initialMessage', 'first_mes', 'firstMessage', 'greeting', 'initial_message', 'initial_msg', 'first_message', 'mes'
+    ];
+
+    let personality = mode === 'reassembled' ? '' : pick(personalityKeys);
+    let scenario = mode === 'reassembled' ? '' : pick(scenarioKeys);
+    let initialMessage = mode === 'reassembled' ? '' : pick(initialMessageKeys);
+
+    // Harvest components array if reassembled OR if compiled fields were empty
+    const rawComps = raw.components || raw.vault_components || raw.componentIds || raw.component_ids || raw.cards || asset.components || [];
+
+    if (Array.isArray(rawComps) && rawComps.length > 0 && (mode === 'reassembled' || !personality || !scenario || !initialMessage)) {
+      const pParts = [];
+      const sParts = [];
+      const iParts = [];
+
+      rawComps.forEach(c => {
+        let cObj = (typeof c === 'string' ? parseIfJson(c) : c);
+        let refId = null;
+
+        if (typeof c === 'string') {
+          refId = c;
+          cObj = null;
+        } else if (cObj && typeof cObj === 'object') {
+          if (!cObj.content && !cObj.personality && !cObj.description && !cObj.system_prompt) {
+            refId = cObj.id || cObj.componentId || cObj.assetId;
+          }
+        }
+
+        if (refId) {
+          const match = _vaultAssets.find(a => a.id === refId || a.raw?.id === refId || a.id === ('comp_' + refId) || (a.raw?.id && a.raw.id === String(refId).replace(/^comp_/, '')));
+          if (match) {
+            cObj = match.raw || match;
+          }
+        }
+
+        if (!cObj || typeof cObj !== 'object') return;
+
+        const cat = (cObj.category || cObj.type || cObj.assetType || '').toLowerCase();
+        const pVal = cObj.personality || cObj.content || cObj.description || cObj.system_prompt || cObj.bio || '';
+        const sVal = cObj.scenario || cObj.world_scenario || '';
+        const iVal = cObj.first_mes || cObj.greeting || cObj.initialMessage || '';
+
+        const isGeneric = (str) => !str || str === 'Compiled Bot Project' || str === 'Compiled AnansiForge Bot Project';
+
+        if (pVal && !isGeneric(pVal) && (cat.includes('character') || cat.includes('personality') || cat.includes('bio') || cat.includes('rule') || !cat)) {
+          pParts.push(pVal.trim());
+        }
+        if (sVal || (pVal && !isGeneric(pVal) && (cat.includes('scenario') || cat.includes('world')))) {
+          const sText = (sVal || pVal).trim();
+          if (!isGeneric(sText)) sParts.push(sText);
+        }
+        if (iVal && !isGeneric(iVal)) {
+          iParts.push(iVal.trim());
+        }
+      });
+
+      if ((mode === 'reassembled' || !personality) && pParts.length > 0) personality = pParts.join('\n\n');
+      if ((mode === 'reassembled' || !scenario) && sParts.length > 0) scenario = sParts.join('\n\n');
+      if ((mode === 'reassembled' || !initialMessage) && iParts.length > 0) initialMessage = iParts.join('\n\n');
+    }
+
+    // Fallback: If personality is STILL empty, try asset.description or raw.description (ignoring generic labels)
+    if (!personality && (asset.description || raw.description)) {
+      const d = (asset.description || raw.description).trim();
+      if (d && d !== 'Compiled Bot Project' && d !== 'Compiled AnansiForge Bot Project') {
+        personality = d;
+      }
+    }
+
+    return { personality, scenario, initialMessage };
+  }
+
   async function parseAndStoreForgeBackup(data) {
     const components = data.components || data.vault_components || [];
     const projects = data.projects || [];
@@ -384,16 +531,16 @@
 
     // Parse compiled projects
     projects.forEach(p => {
-      const card = p.compiledCard || p;
+      const fields = extractProjectPromptFields(p);
       assetsToSave.push({
         id: 'proj_' + (p.id || WorkbenchDB.generateId()),
         assetType: 'project',
         name: p.name || p.title || 'Untitled Project',
         description: p.description || 'Compiled Bot Project',
         universe: p.universe || p.series || '',
-        personality: card.personality || card.system_prompt || '',
-        scenario: card.scenario || card.world_scenario || '',
-        initialMessage: card.first_mes || card.greeting || '',
+        personality: fields.personality,
+        scenario: fields.scenario,
+        initialMessage: fields.initialMessage,
         raw: p,
       });
     });
@@ -411,9 +558,9 @@
         name: c.name || 'Untitled Component',
         description: c.description || c.content || '',
         universe: c.universe || c.series || '',
-        personality: c.content || c.personality || '',
-        scenario: c.scenario || '',
-        initialMessage: c.first_mes || c.initialMessage || '',
+        personality: c.content || c.personality || c.system_prompt || '',
+        scenario: c.scenario || c.world_scenario || '',
+        initialMessage: c.first_mes || c.initialMessage || c.greeting || '',
         raw: c,
       });
     });
@@ -508,26 +655,320 @@
 
   // ─── Convert to Experiment (Single & Batch) ─────────────────────────────────
 
-  async function createExperimentForAsset(id) {
-    const item = _vaultAssets.find(a => a.id === id);
-    if (!item) return;
+  // ─── Assembly Workspace (Workflow A) ───────────────────────────────────────
+
+  let _assemblyState = {
+    title: 'Custom Vault Experiment',
+    description: '',
+    personalityItems: [],
+    scenarioItems: [],
+    initialMessageItems: [],
+    effectiveInitialMessageId: 'merged', // 'merged' or asset ID
+    previewTab: 'combined', // 'personality' | 'scenario' | 'initialMessage' | 'combined'
+  };
+
+  function openAssemblyWorkspace(selectedIds) {
+    const ids = selectedIds || Array.from(_selectedIds);
+    if (ids.length === 0) {
+      showToast('Please select at least one vault asset to assemble.', 'warning');
+      return;
+    }
+
+    const items = ids.map(id => _vaultAssets.find(a => a.id === id)).filter(Boolean);
+
+    _assemblyState = {
+      title: items.length === 1 ? `[Assembly] ${items[0].name}` : `[Assembly] Custom Vault Experiment (${items.length} Assets)`,
+      description: `Assembled from ${items.length} Vault components: ${items.map(i => i.name).join(', ')}`,
+      personalityItems: [],
+      scenarioItems: [],
+      initialMessageItems: [],
+      effectiveInitialMessageId: 'merged',
+      previewTab: 'combined'
+    };
+
+    // Auto-map assets to fields based on category/type
+    items.forEach(item => {
+      const type = (item.assetType || '').toLowerCase();
+      if (type === 'scenario') {
+        _assemblyState.scenarioItems.push(item);
+      } else if (item.initialMessage && !item.personality && !item.scenario) {
+        _assemblyState.initialMessageItems.push(item);
+      } else {
+        _assemblyState.personalityItems.push(item);
+      }
+    });
+
+    renderAssemblyWorkspaceUI();
+    openModal('modal-assembly-workspace');
+  }
+
+  function renderAssemblyWorkspaceUI() {
+    const container = document.getElementById('assembly-workspace-content');
+    if (!container) return;
+
+    const warnings = calculateAssemblyWarnings();
+
+    container.innerHTML = `
+      <div class="flex-column gap-md">
+        <!-- Metadata Header -->
+        <div class="panel" style="padding:12px 16px;">
+          <div class="form-group" style="margin-bottom:8px;">
+            <label>Experiment Title</label>
+            <input type="text" id="assembly-title-input" value="${escapeHtml(_assemblyState.title)}" onchange="WorkbenchImport.updateAssemblyTitle(this.value)">
+          </div>
+          <div class="form-group" style="margin:0;">
+            <label>Description / Assembly Notes</label>
+            <input type="text" id="assembly-desc-input" value="${escapeHtml(_assemblyState.description)}" onchange="WorkbenchImport.updateAssemblyDesc(this.value)">
+          </div>
+        </div>
+
+        <!-- Warning Callouts -->
+        ${warnings.length > 0 ? `
+          <div class="assembly-warning-box">
+            <div class="assembly-warning-title">⚠️ Assembly Warnings & Considerations (${warnings.length})</div>
+            <ul style="margin:0; padding-left:18px;">
+              ${warnings.map(w => `<li>${escapeHtml(w)}</li>`).join('')}
+            </ul>
+          </div>
+        ` : ''}
+
+        <!-- 3 Workspace Sections -->
+        <div class="flex-column gap-sm">
+          <!-- Personality Section -->
+          <div class="assembly-section">
+            <div class="assembly-section-header">
+              <div class="assembly-section-title">🎭 Personality / Character Components (${_assemblyState.personalityItems.length})</div>
+            </div>
+            ${renderAssemblyItemList(_assemblyState.personalityItems, 'personality')}
+          </div>
+
+          <!-- Scenario Section -->
+          <div class="assembly-section">
+            <div class="assembly-section-header">
+              <div class="assembly-section-title">🎬 Scenario & World Components (${_assemblyState.scenarioItems.length})</div>
+            </div>
+            ${renderAssemblyItemList(_assemblyState.scenarioItems, 'scenario')}
+          </div>
+
+          <!-- Initial Message Section -->
+          <div class="assembly-section">
+            <div class="assembly-section-header">
+              <div class="assembly-section-title">💬 Initial Message Components (${_assemblyState.initialMessageItems.length})</div>
+            </div>
+            ${renderAssemblyItemList(_assemblyState.initialMessageItems, 'initialMessage')}
+            
+            ${_assemblyState.initialMessageItems.length > 1 ? `
+              <div style="margin-top:10px; padding:10px; background:var(--bg-elevated); border-radius:var(--radius-sm);">
+                <label style="font-weight:700; font-size:12px; color:var(--text-primary); margin-bottom:6px; display:block;">
+                  ⚡ Effective Initial Message Selection (Multiple Candidates Found)
+                </label>
+                <div class="flex-column gap-xs">
+                  <label class="radio-label">
+                    <input type="radio" name="init_msg_choice" value="merged" ${_assemblyState.effectiveInitialMessageId === 'merged' ? 'checked' : ''} onchange="WorkbenchImport.setInitialMessageChoice('merged')">
+                    <strong>Merge all Initial Messages into one text block</strong>
+                  </label>
+                  ${_assemblyState.initialMessageItems.map(item => `
+                    <label class="radio-label">
+                      <input type="radio" name="init_msg_choice" value="${item.id}" ${_assemblyState.effectiveInitialMessageId === item.id ? 'checked' : ''} onchange="WorkbenchImport.setInitialMessageChoice('${item.id}')">
+                      Use single candidate: <strong>${escapeHtml(item.name)}</strong>
+                    </label>
+                  `).join('')}
+                </div>
+              </div>
+            ` : ''}
+          </div>
+        </div>
+
+        <!-- Live Effective Prompt Preview -->
+        <div class="panel" style="padding:14px;">
+          <div class="assembly-preview-tabs">
+            <button class="assembly-preview-tab ${_assemblyState.previewTab === 'combined' ? 'active' : ''}" onclick="WorkbenchImport.setAssemblyPreviewTab('combined')">⚡ Combined Full Prompt</button>
+            <button class="assembly-preview-tab ${_assemblyState.previewTab === 'personality' ? 'active' : ''}" onclick="WorkbenchImport.setAssemblyPreviewTab('personality')">🎭 Personality Preview</button>
+            <button class="assembly-preview-tab ${_assemblyState.previewTab === 'scenario' ? 'active' : ''}" onclick="WorkbenchImport.setAssemblyPreviewTab('scenario')">🎬 Scenario Preview</button>
+            <button class="assembly-preview-tab ${_assemblyState.previewTab === 'initialMessage' ? 'active' : ''}" onclick="WorkbenchImport.setAssemblyPreviewTab('initialMessage')">💬 Initial Message Preview</button>
+          </div>
+          <div class="assembly-preview-body">${escapeHtml(getAssemblyPreviewText(_assemblyState.previewTab))}</div>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderAssemblyItemList(items, sectionName) {
+    if (items.length === 0) {
+      return `<div style="font-size:12px; color:var(--text-muted); font-style:italic; padding:6px 0;">No components assigned to ${sectionName}.</div>`;
+    }
+
+    return items.map((item, idx) => `
+      <div class="assembly-item-card">
+        <div class="assembly-drag-handle">⋮⋮</div>
+        <div class="assembly-item-info">
+          <div class="assembly-item-title">${escapeHtml(item.name)}</div>
+          <div class="assembly-item-meta">${item.assetType} ${item.universe ? `• ${escapeHtml(item.universe)}` : ''}</div>
+        </div>
+        <div class="flex-row align-center gap-xs">
+          <button class="btn btn-sm" title="Move Up" ${idx === 0 ? 'disabled' : ''} onclick="WorkbenchImport.moveAssemblyItem('${sectionName}', ${idx}, -1)">▲</button>
+          <button class="btn btn-sm" title="Move Down" ${idx === items.length - 1 ? 'disabled' : ''} onclick="WorkbenchImport.moveAssemblyItem('${sectionName}', ${idx}, 1)">▼</button>
+          <select class="btn btn-sm" style="padding:2px 6px; font-size:11px;" onchange="WorkbenchImport.reassignAssemblyItem('${sectionName}', ${idx}, this.value)">
+            <option value="personality" ${sectionName === 'personality' ? 'selected' : ''}>Move to Personality</option>
+            <option value="scenario" ${sectionName === 'scenario' ? 'selected' : ''}>Move to Scenario</option>
+            <option value="initialMessage" ${sectionName === 'initialMessage' ? 'selected' : ''}>Move to Initial Message</option>
+          </select>
+          <button class="btn btn-sm btn-danger" title="Remove" onclick="WorkbenchImport.removeAssemblyItem('${sectionName}', ${idx})">✕</button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function moveAssemblyItem(sectionName, idx, direction) {
+    const list = _assemblyState[`${sectionName}Items`];
+    const targetIdx = idx + direction;
+    if (targetIdx < 0 || targetIdx >= list.length) return;
+    const temp = list[idx];
+    list[idx] = list[targetIdx];
+    list[targetIdx] = temp;
+    renderAssemblyWorkspaceUI();
+  }
+
+  function reassignAssemblyItem(fromSection, idx, toSection) {
+    if (fromSection === toSection) return;
+    const item = _assemblyState[`${fromSection}Items`].splice(idx, 1)[0];
+    if (item) {
+      _assemblyState[`${toSection}Items`].push(item);
+    }
+    renderAssemblyWorkspaceUI();
+  }
+
+  function removeAssemblyItem(sectionName, idx) {
+    _assemblyState[`${sectionName}Items`].splice(idx, 1);
+    renderAssemblyWorkspaceUI();
+  }
+
+  function setInitialMessageChoice(val) {
+    _assemblyState.effectiveInitialMessageId = val;
+    renderAssemblyWorkspaceUI();
+  }
+
+  function setAssemblyPreviewTab(tab) {
+    _assemblyState.previewTab = tab;
+    renderAssemblyWorkspaceUI();
+  }
+
+  function updateAssemblyTitle(val) { _assemblyState.title = val; }
+  function updateAssemblyDesc(val) { _assemblyState.description = val; }
+
+  function calculateAssemblyWarnings() {
+    const warnings = [];
+    const allItems = [
+      ..._assemblyState.personalityItems,
+      ..._assemblyState.scenarioItems,
+      ..._assemblyState.initialMessageItems
+    ];
+
+    if (allItems.length === 0) {
+      warnings.push('Workspace is empty. No components are currently selected.');
+    }
+
+    if (_assemblyState.initialMessageItems.length > 1 && _assemblyState.effectiveInitialMessageId === 'merged') {
+      warnings.push('Multiple Initial Message components are selected. They will be combined into a single opening block.');
+    }
+
+    if (_assemblyState.personalityItems.length === 0) {
+      warnings.push('No Personality components assigned. (Personality field will be empty).');
+    }
+
+    if (_assemblyState.scenarioItems.length === 0) {
+      warnings.push('No Scenario components assigned. (Scenario field will be empty).');
+    }
+
+    // Check for duplicate asset IDs
+    const idCounts = {};
+    allItems.forEach(item => { idCounts[item.id] = (idCounts[item.id] || 0) + 1; });
+    Object.keys(idCounts).forEach(id => {
+      if (idCounts[id] > 1) {
+        const dup = allItems.find(i => i.id === id);
+        warnings.push(`Component "${dup ? dup.name : id}" is included more than once in this assembly.`);
+      }
+    });
+
+    return warnings;
+  }
+
+  function getItemFieldText(item, fieldName) {
+    if (item.assetType === 'project') {
+      const f = extractProjectPromptFields(item);
+      return f[fieldName] || '';
+    }
+    if (fieldName === 'personality') return (item.personality || item.description || '').trim();
+    if (fieldName === 'scenario') return (item.scenario || item.description || '').trim();
+    if (fieldName === 'initialMessage') return (item.initialMessage || item.description || '').trim();
+    return '';
+  }
+
+  function getAssemblyPreviewText(type) {
+    const pText = _assemblyState.personalityItems.map(i => getItemFieldText(i, 'personality')).filter(Boolean).join('\n\n');
+    const sText = _assemblyState.scenarioItems.map(i => getItemFieldText(i, 'scenario')).filter(Boolean).join('\n\n');
+
+    let iText = '';
+    if (_assemblyState.effectiveInitialMessageId === 'merged') {
+      iText = _assemblyState.initialMessageItems.map(i => getItemFieldText(i, 'initialMessage')).filter(Boolean).join('\n\n');
+    } else {
+      const chosen = _assemblyState.initialMessageItems.find(i => i.id === _assemblyState.effectiveInitialMessageId);
+      if (chosen) iText = getItemFieldText(chosen, 'initialMessage');
+    }
+
+    if (type === 'personality') return pText || '[ No Personality content ]';
+    if (type === 'scenario') return sText || '[ No Scenario content ]';
+    if (type === 'initialMessage') return iText || '[ No Initial Message content ]';
+
+    // Combined
+    return `=== PERSONALITY ===\n${pText || '(None)'}\n\n=== SCENARIO ===\n${sText || '(None)'}\n\n=== INITIAL MESSAGE ===\n${iText || '(None)'}`;
+  }
+
+  async function confirmAssemblyWorkspace() {
+    const pText = _assemblyState.personalityItems.map(i => getItemFieldText(i, 'personality')).filter(Boolean).join('\n\n');
+    const sText = _assemblyState.scenarioItems.map(i => getItemFieldText(i, 'scenario')).filter(Boolean).join('\n\n');
+
+    let iText = '';
+    if (_assemblyState.effectiveInitialMessageId === 'merged') {
+      iText = _assemblyState.initialMessageItems.map(i => getItemFieldText(i, 'initialMessage')).filter(Boolean).join('\n\n');
+    } else {
+      const chosen = _assemblyState.initialMessageItems.find(i => i.id === _assemblyState.effectiveInitialMessageId);
+      if (chosen) iText = getItemFieldText(chosen, 'initialMessage');
+    }
+
+    const allItems = [
+      ..._assemblyState.personalityItems,
+      ..._assemblyState.scenarioItems,
+      ..._assemblyState.initialMessageItems
+    ];
+
+    const provenance = allItems.map((item, idx) => ({
+      sourceApp: 'AnansiForge',
+      originalId: item.id,
+      originalName: item.name,
+      category: item.assetType,
+      universe: item.universe || '',
+      contentHash: WorkbenchUtils.computeContentHash(item.personality || item.scenario || item.initialMessage || ''),
+      importDate: new Date().toISOString(),
+      assemblyOrder: idx + 1
+    }));
 
     const exp = {
-      title: `[Forge] ${item.name}`,
-      description: item.description || `Converted from AnansiForge ${item.assetType}`,
-      category: 'AnansiForge',
-      tags: ['anansi-forge', item.assetType],
+      title: _assemblyState.title || 'Assembled Vault Experiment',
+      description: _assemblyState.description || 'Custom assembly from AnansiForge Vault components',
+      category: 'AnansiForge Assembly',
+      tags: ['anansi-forge', 'assembled'],
       status: 'Draft',
-      personality: item.personality || '',
-      scenario: item.scenario || '',
-      initialMessage: item.initialMessage || '',
+      personality: pText,
+      scenario: sText,
+      initialMessage: iText,
       defaultRepetitions: 3,
-      defaultParams: { temperature: 0.9, max_tokens: 500 },
+      provenance,
       subtests: [
         {
           id: WorkbenchDB.generateId(),
-          title: 'Voicing Subtest',
-          description: 'Initial prompt response test case',
+          title: 'Assembled Baseline Subtest',
+          description: 'Default test case for assembled prompt configuration',
           testCases: ['Hello! Introduce yourself.'],
           overrides: {},
           disabled: false
@@ -536,51 +977,207 @@
     };
 
     const saved = await WorkbenchDB.saveExperiment(exp);
-    showToast(`Experiment "${saved.title}" created! Opening builder...`, 'success');
+    closeModal('modal-assembly-workspace');
+    showToast(`Assembled Experiment "${saved.title}" created! Opening builder...`, 'success');
     WorkbenchExperiments.openBuilder(saved.id);
     WorkbenchApp.activateTab('experiments');
   }
 
-  async function batchCreateExperiments() {
+  // ─── Project Converter (Workflow B) ─────────────────────────────────────────
+
+  let _projectConvState = {
+    projectAsset: null,
+    sourceMode: 'compiled', // 'compiled' | 'reassembled'
+  };
+
+  function openProjectConversion(projectId) {
+    const item = _vaultAssets.find(a => a.id === projectId);
+    if (!item) return;
+
+    _projectConvState = {
+      projectAsset: item,
+      sourceMode: 'compiled'
+    };
+
+    renderProjectConversionUI();
+    openModal('modal-project-conversion');
+  }
+
+  function renderProjectConversionUI() {
+    const container = document.getElementById('project-conversion-content');
+    if (!container) return;
+
+    const item = _projectConvState.projectAsset;
+    const mode = _projectConvState.sourceMode || 'compiled';
+    const fields = extractProjectPromptFields(item, mode);
+
+    container.innerHTML = `
+      <div class="flex-column gap-md">
+        <div class="panel" style="padding:12px 16px;">
+          <h3 style="font-size:16px; font-weight:700; margin-bottom:4px;">📦 ${escapeHtml(item.name)}</h3>
+          <div style="font-size:12px; color:var(--text-secondary);">${escapeHtml(item.description || 'Compiled AnansiForge Bot Project')}</div>
+        </div>
+
+        <div class="form-group">
+          <label style="font-weight:700; font-size:12px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px; display:block;">
+            Choose Conversion Source Strategy
+          </label>
+          <div class="flex-column gap-sm">
+            <label class="radio-label panel" style="padding:12px 14px; cursor:pointer; display:flex; flex-direction:row; align-items:flex-start; gap:12px; text-transform:none; letter-spacing:normal;">
+              <input type="radio" name="proj_conv_mode" value="compiled" ${_projectConvState.sourceMode === 'compiled' ? 'checked' : ''} onchange="WorkbenchImport.setProjectConvMode('compiled')" style="margin-top:2px; flex-shrink:0;">
+              <div style="flex:1;">
+                <strong style="font-size:13px; font-weight:700; color:var(--text-primary); display:block; text-transform:none; letter-spacing:normal;">Import Compiled Project (Recommended)</strong>
+                <div style="font-size:11px; color:var(--text-muted); margin-top:2px; text-transform:none; letter-spacing:normal; line-height:1.4;">
+                  Imports the effective prompt content directly without duplicating source definitions.
+                </div>
+              </div>
+            </label>
+
+            <label class="radio-label panel" style="padding:12px 14px; cursor:pointer; display:flex; flex-direction:row; align-items:flex-start; gap:12px; text-transform:none; letter-spacing:normal;">
+              <input type="radio" name="proj_conv_mode" value="reassembled" ${_projectConvState.sourceMode === 'reassembled' ? 'checked' : ''} onchange="WorkbenchImport.setProjectConvMode('reassembled')" style="margin-top:2px; flex-shrink:0;">
+              <div style="flex:1;">
+                <strong style="font-size:13px; font-weight:700; color:var(--text-primary); display:block; text-transform:none; letter-spacing:normal;">Reassemble from Source Components</strong>
+                <div style="font-size:11px; color:var(--text-muted); margin-top:2px; text-transform:none; letter-spacing:normal; line-height:1.4;">
+                  Reconstructs prompt by concatenating underlying vault components and project overrides.
+                </div>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <div class="panel" style="padding:12px 14px;">
+          <label style="font-size:12px; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Effective Prompt Preview</label>
+          <div style="font-family:var(--font-mono); font-size:12px; color:var(--text-secondary); max-height:160px; overflow-y:auto; margin-top:6px; white-space:pre-wrap;">
+=== PERSONALITY ===
+${escapeHtml(fields.personality || '(None)')}
+
+=== SCENARIO ===
+${escapeHtml(fields.scenario || '(None)')}
+
+=== INITIAL MESSAGE ===
+${escapeHtml(fields.initialMessage || '(None)')}
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function setProjectConvMode(mode) {
+    _projectConvState.sourceMode = mode;
+    renderProjectConversionUI();
+  }
+
+  async function confirmProjectConversion() {
+    const item = _projectConvState.projectAsset;
+    if (!item) return;
+
+    const mode = _projectConvState.sourceMode || 'compiled';
+    const fields = extractProjectPromptFields(item, mode);
+
+    const exp = {
+      title: `[Forge Project] ${item.name}`,
+      description: item.description || `Converted project (${_projectConvState.sourceMode}) from AnansiForge`,
+      category: 'AnansiForge Project',
+      tags: ['anansi-forge', 'project', _projectConvState.sourceMode],
+      status: 'Draft',
+      personality: fields.personality,
+      scenario: fields.scenario,
+      initialMessage: fields.initialMessage,
+      defaultRepetitions: 3,
+      provenance: [{
+        sourceApp: 'AnansiForge',
+        originalId: item.id,
+        originalName: item.name,
+        category: 'project',
+        projectId: item.id,
+        contentHash: WorkbenchUtils.computeContentHash(fields.personality || ''),
+        importDate: new Date().toISOString()
+      }],
+      subtests: [
+        {
+          id: WorkbenchDB.generateId(),
+          title: 'Project Baseline Subtest',
+          description: 'Default test case for converted project prompt',
+          testCases: ['Hello! Introduce yourself.'],
+          overrides: {},
+          disabled: false
+        }
+      ]
+    };
+
+    const saved = await WorkbenchDB.saveExperiment(exp);
+    closeModal('modal-project-conversion');
+    showToast(`Converted Project "${saved.title}" created! Opening builder...`, 'success');
+    WorkbenchExperiments.openBuilder(saved.id);
+    WorkbenchApp.activateTab('experiments');
+  }
+
+  // ─── Bulk Subtest Creation (Bulk Mode B) ──────────────────────────────────
+
+  async function createBulkSubtestExperiment() {
     if (_selectedIds.size === 0) return;
 
-    const confirm = await showConfirm(`Create ${_selectedIds.size} new Workbench Experiments from the selected items?`, 'Batch Create');
-    if (!confirm) return;
+    const items = Array.from(_selectedIds).map(id => _vaultAssets.find(a => a.id === id)).filter(Boolean);
+    if (items.length === 0) return;
 
-    let createdCount = 0;
-    for (const id of _selectedIds) {
-      const item = _vaultAssets.find(a => a.id === id);
-      if (!item) continue;
+    const title = prompt(`Enter Experiment Title for Bulk Subtest suite (${items.length} assets):`, `[Forge Bulk] ${items.length} Character Voicing Suite`);
+    if (!title) return;
 
-      const exp = {
-        title: `[Forge] ${item.name}`,
-        description: item.description || `Batch converted from AnansiForge ${item.assetType}`,
-        category: 'AnansiForge Batch',
-        tags: ['anansi-forge', 'batch', item.assetType],
-        status: 'Draft',
-        personality: item.personality || '',
+    const parentExp = {
+      title,
+      description: `Bulk subtest suite containing ${items.length} individual vault asset subtests.`,
+      category: 'AnansiForge Bulk Suite',
+      tags: ['anansi-forge', 'bulk-subtests'],
+      status: 'Draft',
+      personality: '',
+      scenario: 'Shared world setting / scenario context for all subtests.',
+      initialMessage: '',
+      defaultRepetitions: 3,
+      subtests: items.map(item => ({
+        id: WorkbenchDB.generateId(),
+        title: item.name,
+        description: `Character subtest for ${item.name}`,
+        personality: item.personality || item.description || '',
         scenario: item.scenario || '',
         initialMessage: item.initialMessage || '',
-        defaultRepetitions: 3,
-        subtests: [
-          {
-            id: WorkbenchDB.generateId(),
-            title: 'Voicing Subtest',
-            description: 'Initial prompt response test case',
-            testCases: ['Hello! Introduce yourself.'],
-            overrides: {},
-            disabled: false
-          }
-        ]
-      };
+        inheritanceMode: {
+          personality: 'replace',
+          scenario: 'inherit',
+          initialMessage: 'inherit'
+        },
+        testCases: ['Tell me about yourself and your background.'],
+        overrides: {},
+        disabled: false,
+        provenance: {
+          originalId: item.id,
+          name: item.name,
+          category: item.assetType
+        }
+      }))
+    };
 
-      await WorkbenchDB.saveExperiment(exp);
-      createdCount++;
+    const saved = await WorkbenchDB.saveExperiment(parentExp);
+    _selectedIds.clear();
+    showToast(`Bulk Subtest Experiment "${saved.title}" (${items.length} subtests) created! Opening builder...`, 'success');
+    WorkbenchExperiments.openBuilder(saved.id);
+    WorkbenchApp.activateTab('experiments');
+  }
+
+  async function createExperimentForAsset(id) {
+    const item = _vaultAssets.find(a => a.id === id);
+    if (!item) return;
+
+    if (item.assetType === 'project') {
+      openProjectConversion(id);
+      return;
     }
 
-    _selectedIds.clear();
-    showToast(`Batch created ${createdCount} experiments! Navigating to Experiments tab...`, 'success');
-    WorkbenchApp.activateTab('experiments');
+    openAssemblyWorkspace([id]);
+  }
+
+  async function batchCreateExperiments() {
+    if (_selectedIds.size === 0) return;
+    openAssemblyWorkspace(Array.from(_selectedIds));
   }
 
   async function init() {
@@ -602,6 +1199,22 @@
     openAssetModal,
     createExperimentForAsset,
     batchCreateExperiments,
+    // Workflows A & B
+    openAssemblyWorkspace,
+    renderAssemblyWorkspaceUI,
+    moveAssemblyItem,
+    reassignAssemblyItem,
+    removeAssemblyItem,
+    setInitialMessageChoice,
+    setAssemblyPreviewTab,
+    updateAssemblyTitle,
+    updateAssemblyDesc,
+    confirmAssemblyWorkspace,
+    openProjectConversion,
+    setProjectConvMode,
+    confirmProjectConversion,
+    createBulkSubtestExperiment,
+    extractProjectPromptFields,
   };
   window.WorkbenchImportForge = window.WorkbenchImport;
 })();

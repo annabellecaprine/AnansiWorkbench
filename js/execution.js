@@ -183,6 +183,14 @@
         const jobs = [];
         let sortKey = 0;
         for (const st of enabledSubtests) {
+            const pMode = (st.inheritanceMode && st.inheritanceMode.personality) || 'inherit';
+            const sMode = (st.inheritanceMode && st.inheritanceMode.scenario) || 'inherit';
+            const iMode = (st.inheritanceMode && st.inheritanceMode.initialMessage) || 'inherit';
+
+            const effectivePersonality = WorkbenchUtils.calculateEffectivePromptField(exp.personality, st.personality, pMode);
+            const effectiveScenario = WorkbenchUtils.calculateEffectivePromptField(exp.scenario, st.scenario, sMode);
+            const effectiveInitialMessage = WorkbenchUtils.calculateEffectivePromptField(exp.initialMessage, st.initialMessage, iMode);
+
             for (const resp of (st.userResponses || [])) {
                 const testCaseId = WorkbenchDB.generateId();
                 for (const modelId of models) {
@@ -196,13 +204,13 @@
                             iteration: i,
                             sortKey: sortKey++,
                             userResponse: resp,
-                            effectivePersonality: st.personality != null ? st.personality : exp.personality,
-                            effectiveScenario: st.scenario != null ? st.scenario : exp.scenario,
-                            effectiveInitialMessage: st.initialMessage != null ? st.initialMessage : exp.initialMessage,
+                            effectivePersonality,
+                            effectiveScenario,
+                            effectiveInitialMessage,
                             promptSnapshot: {
-                                personality: st.personality != null ? st.personality : exp.personality,
-                                scenario: st.scenario != null ? st.scenario : exp.scenario,
-                                initialMessage: st.initialMessage != null ? st.initialMessage : exp.initialMessage,
+                                personality: effectivePersonality,
+                                scenario: effectiveScenario,
+                                initialMessage: effectiveInitialMessage,
                                 userResponse: resp,
                                 modelId,
                             },

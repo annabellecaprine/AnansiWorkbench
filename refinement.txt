@@ -1,0 +1,825 @@
+# AnansiWorkbench: Mission Control Integration Refinement
+
+## 1. Objective
+
+Refine the existing AnansiForge integration within AnansiWorkbench to provide a complete, flexible workflow for importing and assembling experiments from AnansiForge Vault assets.
+
+AnansiWorkbench is an independent, standalone application. AnansiForge is a compatible source of creative assets, not a required runtime dependency.
+
+The existing manual Experiment Builder, batch execution engine, Test Record Sheets, and reporting functionality are already working and should be preserved.
+
+**Do not rebuild these systems. Extend the import and experiment-assembly workflows to use them more effectively.**
+
+Mission Control should support two primary operations:
+
+1. Assemble a new experiment from multiple individual Vault components.
+2. Import an existing AnansiForge project as a complete experiment.
+
+Both operations must produce ordinary, editable AnansiWorkbench experiments.
+
+The resulting experiments must be fully compatible with the existing subtest system, model selection, batch execution, recording fields, and historical run storage.
+
+---
+
+# 2. Core design principles
+
+The integration must follow these principles.
+
+### Standalone operation
+
+AnansiWorkbench must function independently of AnansiForge.
+
+Vault imports should operate on compatible files or imported asset records. They must not require AnansiForge to be installed or running.
+
+### Read-only source handling
+
+Importing, assembling, or editing an experiment must never modify its source AnansiForge assets.
+
+The Workbench operates on local copies.
+
+### Preserve existing functionality
+
+Do not replace or redesign the functioning manual Experiment Builder.
+
+Mission Control should prepare experiment configurations and pass them into the existing builder.
+
+### Explicit assembly
+
+Assets must be assigned to their intended prompt fields.
+
+Do not indiscriminately concatenate every selected component into Personality.
+
+### Preserve provenance
+
+Retain enough source information to identify which Vault assets were used to construct an experiment.
+
+### Historical integrity
+
+Changes to imported experiments must never modify completed execution runs or their saved prompts.
+
+---
+
+# 3. Mission Control entry points
+
+The existing AnansiForge Vault Hub already provides browsing, searching, inspection, and conversion functionality.
+
+Preserve that interface and expand its actions.
+
+Mission Control should provide two clear entry points.
+
+## A. Assemble from Components
+
+The user selects individual Vault components and builds a custom experiment from them.
+
+Examples include:
+
+* Several Character components.
+* One or more Organization components.
+* A Scenario component.
+* An Initial Message component.
+
+The selected assets are assembled into the appropriate prompt fields.
+
+## B. Convert Complete Project
+
+The user selects an existing assembled AnansiForge project.
+
+Mission Control imports its compiled or assembled prompt definitions and creates a corresponding experiment.
+
+Both workflows should end with the user reviewing the resulting experiment in the existing Experiment Builder.
+
+Do not automatically begin execution after conversion.
+
+---
+
+# 4. Workflow A: Assemble from Components
+
+This workflow allows users to create experiments using any combination of compatible Vault assets.
+
+It should support selecting components individually or in bulk.
+
+## Step 1: Select assets
+
+Use the existing Vault Hub as the asset browser.
+
+Allow users to:
+
+* Search by name.
+* Filter by component type.
+* Filter by universe or project where metadata exists.
+* Select multiple components.
+* Inspect a component before selecting it.
+* Remove components from the selection.
+
+Selection must persist while switching between asset categories.
+
+For example, the user should be able to select three Characters, switch to Organizations, select an Organization, and then select a Scenario without losing the previous selections.
+
+Provide a visible selection summary.
+
+Example:
+
+Selected assets:
+
+* Character: Geralt of Rivia
+* Character: Yennefer of Vengerberg
+* Character: Ciri
+* Organization: Witchers
+* Scenario: Kaer Morhen Training
+* Initial Message: Training Begins
+
+The application should preserve the order in which components will be assembled.
+
+## Step 2: Open the Assembly Workspace
+
+Once components have been selected, provide an action such as:
+
+"Create Experiment from Selection"
+
+This opens an assembly workspace.
+
+The workspace should contain three primary sections:
+
+PERSONALITY
+
+SCENARIO
+
+INITIAL MESSAGE
+
+Each section displays the components assigned to it.
+
+For example:
+
+PERSONALITY
+
+1. Geralt of Rivia
+2. Yennefer of Vengerberg
+3. Ciri
+4. Witchers
+
+SCENARIO
+
+1. Kaer Morhen Training
+
+INITIAL MESSAGE
+
+1. Training Begins
+
+The assembly workspace must support reassignment of individual components.
+
+A Character component should ordinarily map to Personality, but the user should be able to change its destination.
+
+Do not permanently restrict components to a particular field based solely on their Vault category.
+
+Component categories should determine the suggested mapping, not impose an unchangeable mapping.
+
+## Step 3: Configure component order
+
+Allow the user to reorder components within Personality and Scenario.
+
+Provide drag-and-drop ordering or equivalent move controls.
+
+The order must be reflected in the assembled prompt.
+
+Do not arbitrarily sort components alphabetically during assembly.
+
+Preserve each component's original content.
+
+Do not rewrite character definitions or alter their internal formatting.
+
+When combining components, use a consistent, configurable separation method.
+
+Do not insert unnecessary instructions or rewrite the components to make them flow together.
+
+## Step 4: Handle the Initial Message
+
+An experiment has one effective Initial Message.
+
+If the user selects multiple Initial Message components, do not silently concatenate them.
+
+Instead, present the available components and allow the user to:
+
+* Select one as the effective Initial Message.
+* Edit the effective Initial Message.
+* Explicitly combine components if desired.
+
+The default should be to require an explicit selection when multiple candidates exist.
+
+This prevents unrelated openings from being accidentally merged.
+
+## Step 5: Inspect assembled content
+
+Before creating the experiment, display the complete assembled result.
+
+Provide separate previews for:
+
+* Personality.
+* Scenario.
+* Initial Message.
+
+Also provide a combined effective-prompt preview.
+
+The preview should show the actual content that will be used in the experiment, not merely the names of the selected components.
+
+The user must be able to identify duplicated definitions, incorrect mappings, unexpected separators, and missing information before committing the assembly.
+
+Provide warnings for obvious issues, such as:
+
+* No Initial Message selected.
+* Multiple Initial Messages requiring a selection.
+* The same source component included twice.
+* An empty selected component.
+* A source component that no longer exists in the imported Vault.
+* An asset whose intended destination cannot be determined.
+
+Warnings should not unnecessarily prevent the user from creating an experiment.
+
+Some experiments intentionally omit Personality, Scenario, or Initial Message content.
+
+## Step 6: Create the experiment
+
+Once the assembly is confirmed, create an ordinary AnansiWorkbench experiment.
+
+Populate:
+
+* Experiment title.
+* Description, where provided.
+* Personality.
+* Scenario.
+* Initial Message.
+* Relevant source metadata.
+
+Open the resulting experiment in the existing Experiment Builder.
+
+The user should then be able to configure:
+
+* Models.
+* Repetitions.
+* Subtests.
+* Predefined user responses.
+* Recording fields.
+
+Do not create a special type of experiment that can only be edited through Mission Control.
+
+The assembled content should be available for normal manual editing.
+
+---
+
+# 5. Workflow B: Convert Complete Project
+
+This workflow imports an existing assembled AnansiForge project.
+
+It should require considerably less manual configuration than assembling individual components.
+
+## Step 1: Select a project
+
+The existing Vault Hub already lists compiled projects.
+
+Preserve the current Inspect and Convert actions.
+
+Inspect should display the available project information and assembled content.
+
+Convert should open the project-conversion workflow.
+
+## Step 2: Read the actual project structure
+
+AnansiForge projects may include:
+
+* Project metadata.
+* Component references.
+* Component-to-field mappings.
+* Content overrides.
+* Relationships.
+* Compiled character-card data.
+* Personality content.
+* Scenario content.
+* Initial Message content.
+
+Inspect the actual imported file format and use the available project mappings.
+
+Do not assume that every referenced component belongs in Personality.
+
+Do not reconstruct a project from component names alone.
+
+Where the source includes an existing compiled character card, support importing its effective prompt fields directly.
+
+## Step 3: Choose the import source
+
+An assembled project may contain both source components and compiled prompt content.
+
+These are not necessarily interchangeable.
+
+Provide an explicit source selection when both are available.
+
+Suggested options:
+
+**Import compiled project**
+
+Use the effective Personality, Scenario, and Initial Message from the compiled project.
+
+**Reassemble from components**
+
+Use the project's component references, mappings, ordering, and supported overrides to reconstruct its prompt.
+
+The default for a complete compiled project should be to import its existing effective prompt content.
+
+This is generally the closest representation of what the original assembled bot actually uses.
+
+Do not import the compiled content and then append all of its source components again.
+
+That would duplicate definitions.
+
+## Step 4: Respect project overrides
+
+When reconstructing a project from components, honor its actual component mappings and content overrides.
+
+If the project contains a modified version of a source component, use the effective project version rather than blindly substituting the original Vault component.
+
+Where relationships or ordering information affect the compiled result, preserve those effects when supported by the source format.
+
+If exact reconstruction is not possible, clearly identify the limitation and offer to use the compiled project content instead.
+
+Never claim that a reconstruction is identical to the original when relevant information is missing.
+
+## Step 5: Preview the imported project
+
+Before conversion, display:
+
+* Project name.
+* Source format.
+* Component count.
+* Personality preview.
+* Scenario preview.
+* Initial Message preview.
+* Any import warnings.
+
+Allow the user to inspect the full prompt content.
+
+If the project contains additional fields that the Workbench does not currently use, do not silently insert them into Personality or Scenario.
+
+Preserve relevant metadata where practical and identify any unsupported fields.
+
+## Step 6: Convert
+
+Create an ordinary AnansiWorkbench experiment from the selected project.
+
+Use the existing Experiment Builder.
+
+The imported project should become the starting configuration.
+
+The user must be able to edit its prompt fields, add subtests, configure models, and execute tests normally.
+
+The experiment must not depend on continued access to the source project.
+
+---
+
+# 6. Bulk conversion
+
+Bulk conversion is important for large experiments.
+
+The user may want to test dozens or hundreds of characters.
+
+For example:
+
+"Create a character introduction experiment using 180 selected Character components."
+
+Provide a bulk workflow that can create one parent experiment containing many subtests.
+
+## Bulk assembly options
+
+When multiple compatible assets are selected, offer at least two modes.
+
+### Mode A: Combined experiment
+
+Combine selected components into one assembled experiment.
+
+Example:
+
+Geralt + Yennefer + Ciri become one ensemble Personality.
+
+### Mode B: One subtest per asset
+
+Create a parent experiment containing one subtest for each selected asset.
+
+Example:
+
+Introduction Test
+
+* Bruce Wayne.
+* Barry Allen.
+* Clark Kent.
+* Diana Prince.
+
+Each subtest receives its own appropriate prompt content.
+
+This is particularly useful for character voicing and introduction tests.
+
+## Shared configuration
+
+Bulk-created subtests should inherit the parent experiment's:
+
+* Selected models.
+* Repetition count.
+* Generation parameters.
+* Request throttling.
+* Recording fields.
+
+Each subtest should override only the content that differs.
+
+For example, all characters might share the user response:
+
+"Tell me about yourself."
+
+The user's common test message should not need to be entered 180 times.
+
+## Bulk preview
+
+Before creating the experiment, show:
+
+* Number of subtests.
+* Number of selected models, if configured.
+* Repetition count.
+* Estimated generation-job count.
+* Any missing required content.
+* Any import warnings.
+
+Allow the user to inspect individual subtests before confirmation.
+
+Do not execute the experiment during import.
+
+---
+
+# 7. Experiment-level versus subtest-level assembly
+
+Component assembly must support both levels.
+
+## Experiment-level assembly
+
+Components assigned to the parent experiment become shared defaults.
+
+Example:
+
+Parent Personality:
+Shared world rules and organizational definitions.
+
+Parent Scenario:
+Shared setting.
+
+Parent Initial Message:
+Common opening.
+
+## Subtest-level assembly
+
+A subtest may override individual prompt fields.
+
+Example:
+
+Bruce Wayne subtest:
+Character-specific Personality.
+
+Barry Allen subtest:
+Different character-specific Personality.
+
+Both inherit the shared Scenario and Initial Message where appropriate.
+
+### Important: append versus replace
+
+When importing components into a subtest, the application must distinguish between replacing an inherited field and adding content to it.
+
+Provide explicit options:
+
+* Inherit parent content.
+* Replace parent content.
+* Append additional content.
+* Prepend additional content.
+
+Do not assume that every subtest Personality should replace the entire parent Personality.
+
+Equally, do not assume that it should always be appended.
+
+This is especially important when a shared parent contains world rules and each subtest adds an individual character definition.
+
+The effective-prompt preview must reflect the chosen inheritance behavior.
+
+Preserve the exact effective configuration in each execution run.
+
+---
+
+# 8. Component provenance
+
+Preserve source information for imported content.
+
+For each imported component, retain available information such as:
+
+* Source application.
+* Original component ID.
+* Original component name.
+* Component category.
+* Source project ID.
+* Original source version or modification date.
+* Import timestamp.
+* Content hash.
+* Destination prompt field.
+* Assembly order.
+
+Provenance is metadata, not a live dependency.
+
+The imported content must remain usable if the original source file is deleted or replaced.
+
+### Why this matters
+
+A user may later discover that one version of a character definition produces more consistent results.
+
+The experiment should make it possible to identify which source component was originally imported.
+
+Historical execution runs must preserve the exact prompt content used, even if the editable experiment or source Vault changes later.
+
+---
+
+# 9. Reimporting and updating assets
+
+The Workbench must not silently overwrite existing experiments when an AnansiForge backup is imported again.
+
+Imported source assets and experiments are separate entities.
+
+If a new import contains an asset with the same original source ID, compare available metadata and content hashes.
+
+Where content differs, indicate that a newer or different source version is available.
+
+Offer explicit actions such as:
+
+* Keep existing local copy.
+* Import as a separate version.
+* Update the editable source copy.
+* Skip the asset.
+
+Do not automatically replace content inside existing experiments.
+
+If the user chooses to update an experiment using newer source content, show the proposed changes before applying them.
+
+Where possible, provide a field-level comparison.
+
+For example:
+
+Personality changed.
+Scenario unchanged.
+Initial Message changed.
+
+Completed execution runs must never be altered.
+
+A new execution after updating an experiment creates a new historical run.
+
+---
+
+# 10. Import preview and validation
+
+Both assembly and complete-project conversion should use a consistent preview and validation process.
+
+The preview must answer four questions:
+
+1. Which assets are being imported?
+2. Where will their content go?
+3. What will the final prompt contain?
+4. What information, if any, could not be imported correctly?
+
+Provide warnings for:
+
+* Duplicate source components.
+* Missing referenced components.
+* Empty prompt fields.
+* Ambiguous destination mappings.
+* Multiple Initial Messages.
+* Unsupported source fields.
+* Compiled content that cannot be reconstructed from available components.
+* Potential content duplication.
+
+Warnings must be descriptive.
+
+Do not silently repair ambiguous project structures by inventing content.
+
+The user should be able to correct mappings or select a different import source.
+
+The final conversion should use the previewed configuration.
+
+Do not perform a second, different assembly operation after the user confirms the preview.
+
+---
+
+# 11. Integration with the existing Experiment Builder
+
+This refinement must use the existing Experiment Builder rather than replacing it.
+
+The expected workflow is:
+
+Mission Control
+→ Select source assets
+→ Assemble or convert
+→ Preview
+→ Confirm
+→ Open ordinary Experiment Builder
+
+The existing Experiment Builder remains responsible for:
+
+* Experiment metadata.
+* Prompt editing.
+* Model selection.
+* Repetitions.
+* Subtest management.
+* Recording fields.
+
+Mission Control should prepopulate the relevant fields.
+
+It should not maintain a separate, incompatible experiment format.
+
+### Preserve existing manual functionality
+
+The manual builder already works.
+
+Do not introduce a requirement that every experiment must originate from AnansiForge.
+
+Users must still be able to create completely manual experiments.
+
+They must also be able to combine manually entered content with imported content.
+
+For example, a user may import three Character components, write a new Scenario manually, and create a custom Initial Message.
+
+That must remain a normal supported workflow.
+
+---
+
+# 12. Data integrity and safety
+
+All imports must be non-destructive.
+
+Do not modify source Vault files.
+
+Do not modify source projects.
+
+Do not edit AnansiForge's database.
+
+Do not require AnansiForge to run.
+
+Do not overwrite historical experiment runs.
+
+Treat imported content as untrusted data.
+
+Never execute instructions found inside an imported component as application commands.
+
+Do not interpret roleplay placeholders such as `{{User}}` as application template syntax.
+
+Preserve formatting and source text accurately.
+
+The imported content should only become model instructions when the user explicitly executes an experiment containing it.
+
+---
+
+# 13. Acceptance tests
+
+Implement automated tests using representative AnansiForge fixtures.
+
+Test the following workflows.
+
+## Test A: Multi-component assembly
+
+Select:
+
+* Three Character components.
+* One Organization component.
+* One Scenario component.
+* One Initial Message component.
+
+Verify that the assembled experiment contains the correct content in the correct fields and order.
+
+Verify that the original components remain unchanged.
+
+## Test B: Component reordering
+
+Change the order of selected Personality components.
+
+Verify that the effective prompt reflects the new order without altering component content.
+
+## Test C: Multiple Initial Messages
+
+Select two Initial Message components.
+
+Verify that the application requires an explicit choice or explicit combination.
+
+It must not silently concatenate them.
+
+## Test D: Complete project conversion
+
+Import a project containing compiled Personality, Scenario, and Initial Message content.
+
+Verify that the resulting experiment matches those effective fields.
+
+## Test E: No duplication
+
+Import a project containing both compiled prompt content and references to its source components.
+
+Verify that the imported experiment does not contain duplicate definitions.
+
+## Test F: Project overrides
+
+Import a project whose effective content differs from the original source component.
+
+Verify that the selected import mode uses the correct effective content.
+
+## Test G: Bulk subtest creation
+
+Select 50 Character components.
+
+Create one experiment with one subtest per character.
+
+Verify that exactly 50 subtests are created and that each contains the appropriate character content.
+
+## Test H: Inheritance
+
+Create a parent Scenario and add character-specific Personality components to individual subtests.
+
+Verify that each subtest's effective prompt contains the shared Scenario and its intended character definition.
+
+## Test I: Reimport
+
+Import the same Vault backup twice.
+
+Verify that existing experiments are not silently overwritten or duplicated.
+
+## Test J: Historical preservation
+
+Create an experiment from Vault components and execute it.
+
+Update the editable experiment using newer imported source content.
+
+Verify that the previous execution retains its original prompt and results.
+
+## Test K: Standalone operation
+
+Import assets, create an experiment, and execute a mock batch without AnansiForge running or installed.
+
+Verify that the complete workflow functions independently.
+
+---
+
+# 14. Implementation instructions
+
+Begin by inspecting the existing AnansiWorkbench codebase.
+
+Identify:
+
+* The Vault import parser.
+* The existing asset browser.
+* The current Inspect and Convert actions.
+* The Experiment Builder.
+* The Subtest Builder.
+* The existing experiment data model.
+* The existing import and conversion functions.
+
+Determine which required behaviors already work.
+
+Do not rewrite functioning components unnecessarily.
+
+Reuse the existing conversion path where possible.
+
+Implement the missing functionality incrementally.
+
+Suggested order:
+
+1. Improve individual component selection and assembly.
+2. Add explicit field mapping and component ordering.
+3. Add effective-prompt preview.
+4. Refine complete-project import.
+5. Add parent/subtest inheritance controls.
+6. Add bulk subtest creation.
+7. Add provenance and reimport safeguards.
+8. Complete automated acceptance tests.
+
+Keep the application functional throughout development.
+
+Do not modify the batch execution engine unless a specific compatibility issue requires it.
+
+Do not change the Test Record Sheet or visualization systems unless necessary to preserve existing data relationships.
+
+---
+
+# 15. Final deliverable
+
+Deliver the refined Mission Control integration as part of the existing standalone AnansiWorkbench application.
+
+Provide:
+
+* Working multi-component assembly.
+* Reliable complete-project conversion.
+* Bulk subtest creation.
+* Explicit prompt-field mapping.
+* Component ordering.
+* Effective-prompt previews.
+* Source provenance.
+* Safe reimport handling.
+* Automated tests.
+* A brief summary of the changes.
+
+Identify any source formats that could not be fully supported and explain what representative files or documentation would be required.
+
+The finished integration should make it easy to move from existing AnansiForge creative assets to a fully configured AnansiWorkbench experiment without rebuilding prompts manually.
+
+**Mission Control prepares the experiment. AnansiWorkbench executes and records it. AnansiForge remains independent and untouched.**

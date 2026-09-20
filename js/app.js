@@ -72,15 +72,48 @@
         URL.revokeObjectURL(url);
     }
 
-    function slugify(str) {
-        return String(str).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    function computeContentHash(str) {
+        str = String(str || '');
+        let hash = 5381;
+        for (let i = 0; i < str.length; i++) {
+            hash = ((hash << 5) + hash) + str.charCodeAt(i);
+        }
+        return (hash >>> 0).toString(16);
     }
 
-    function plural(n, word) {
-        return `${n} ${word}${n === 1 ? '' : 's'}`;
+    function slugify(text) {
+        return String(text || '')
+            .toLowerCase()
+            .trim()
+            .replace(/[^\w\s-]/g, '')
+            .replace(/[\s_-]+/g, '-')
+            .replace(/^-+|-+$/g, '');
     }
 
-    window.WorkbenchUtils = { escapeHtml, formatDate, formatDateTime, formatDuration, debounce, downloadJSON, downloadCSV, slugify, plural };
+    function plural(count, singular, pluralForm) {
+        return count === 1 ? singular : (pluralForm || singular + 's');
+    }
+
+    function calculateEffectivePromptField(parentVal, subtestVal, mode = 'inherit') {
+        parentVal = (parentVal || '').trim();
+        subtestVal = (subtestVal || '').trim();
+
+        if (mode === 'replace') {
+            return subtestVal || parentVal;
+        }
+        if (mode === 'append') {
+            if (parentVal && subtestVal) return parentVal + '\n\n' + subtestVal;
+            return subtestVal || parentVal;
+        }
+        if (mode === 'prepend') {
+            if (parentVal && subtestVal) return subtestVal + '\n\n' + parentVal;
+            return subtestVal || parentVal;
+        }
+        // 'inherit' or default
+        return subtestVal || parentVal;
+    }
+
+    window.WorkbenchUtils = { escapeHtml, formatDate, formatDateTime, formatDuration, debounce, downloadJSON, downloadCSV, slugify, plural, computeContentHash, calculateEffectivePromptField };
 
     // ─── Toast Notifications ─────────────────────────────────────────────────────
 
