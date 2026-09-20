@@ -117,9 +117,15 @@
             container.innerHTML = '<p class="hint">No models configured. Add one in the Models tab.</p>';
             return;
         }
+
+        const enabledModels = _models.filter(m => m.enabled !== false);
+        const realModels = enabledModels.filter(m => m.provider !== 'mock');
+        const defaultCheck = (realModels.length > 0 ? realModels : enabledModels).map(m => m.id);
+        const effectiveSelected = (selected && selected.length > 0) ? selected : defaultCheck;
+
         container.innerHTML = _models.map(m => `
       <label class="checkbox-label">
-        <input type="checkbox" name="exp-model" value="${m.id}" ${selected.includes(m.id) ? 'checked' : ''}>
+        <input type="checkbox" name="exp-model" value="${m.id}" ${effectiveSelected.includes(m.id) ? 'checked' : ''}>
         ${escapeHtml(m.name)}
       </label>`).join('');
     }

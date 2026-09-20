@@ -924,6 +924,17 @@
     return `=== PERSONALITY ===\n${pText || '(None)'}\n\n=== SCENARIO ===\n${sText || '(None)'}\n\n=== INITIAL MESSAGE ===\n${iText || '(None)'}`;
   }
 
+  async function getDefaultModelIds() {
+    try {
+      const all = await WorkbenchDB.getAllModels();
+      const enabled = all.filter(m => m.enabled !== false);
+      const real = enabled.filter(m => m.provider !== 'mock');
+      return (real.length > 0 ? real : enabled).map(m => m.id);
+    } catch (e) {
+      return [];
+    }
+  }
+
   async function confirmAssemblyWorkspace() {
     const pText = _assemblyState.personalityItems.map(i => getItemFieldText(i, 'personality')).filter(Boolean).join('\n\n');
     const sText = _assemblyState.scenarioItems.map(i => getItemFieldText(i, 'scenario')).filter(Boolean).join('\n\n');
@@ -953,6 +964,8 @@
       assemblyOrder: idx + 1
     }));
 
+    const defaultModels = await getDefaultModelIds();
+
     const exp = {
       title: _assemblyState.title || 'Assembled Vault Experiment',
       description: _assemblyState.description || 'Custom assembly from AnansiForge Vault components',
@@ -962,6 +975,7 @@
       personality: pText,
       scenario: sText,
       initialMessage: iText,
+      defaultModels,
       defaultRepetitions: 3,
       provenance,
       subtests: [
@@ -1074,6 +1088,8 @@ ${escapeHtml(fields.initialMessage || '(None)')}
     const mode = _projectConvState.sourceMode || 'compiled';
     const fields = extractProjectPromptFields(item, mode);
 
+    const defaultModels = await getDefaultModelIds();
+
     const exp = {
       title: `[Forge Project] ${item.name}`,
       description: item.description || `Converted project (${_projectConvState.sourceMode}) from AnansiForge`,
@@ -1083,6 +1099,7 @@ ${escapeHtml(fields.initialMessage || '(None)')}
       personality: fields.personality,
       scenario: fields.scenario,
       initialMessage: fields.initialMessage,
+      defaultModels,
       defaultRepetitions: 3,
       provenance: [{
         sourceApp: 'AnansiForge',
@@ -1123,6 +1140,8 @@ ${escapeHtml(fields.initialMessage || '(None)')}
     const title = prompt(`Enter Experiment Title for Bulk Subtest suite (${items.length} assets):`, `[Forge Bulk] ${items.length} Character Voicing Suite`);
     if (!title) return;
 
+    const defaultModels = await getDefaultModelIds();
+
     const parentExp = {
       title,
       description: `Bulk subtest suite containing ${items.length} individual vault asset subtests.`,
@@ -1132,6 +1151,7 @@ ${escapeHtml(fields.initialMessage || '(None)')}
       personality: '',
       scenario: 'Shared world setting / scenario context for all subtests.',
       initialMessage: '',
+      defaultModels,
       defaultRepetitions: 3,
       subtests: items.map(item => ({
         id: WorkbenchDB.generateId(),

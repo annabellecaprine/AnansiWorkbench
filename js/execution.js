@@ -157,10 +157,24 @@
         if (!exp) { showToast('Experiment not found.', 'error'); return; }
 
         const enabledSubtests = (exp.subtests || []).filter(st => !st.disabled);
-        const models = exp.defaultModels || [];
+
+        // Resolve models: get all configured models from DB
+        const allModels = await WorkbenchDB.getAllModels();
+        const enabledModels = allModels.filter(m => m.enabled !== false);
+
+        let models = exp.defaultModels || [];
+        // Filter out any model IDs that no longer exist in DB
+        models = models.filter(id => enabledModels.some(m => m.id === id));
+
+        // Fallback: If no valid models selected in exp.defaultModels, use user's configured models (preferring real/non-mock providers)
+        if (models.length === 0 && enabledModels.length > 0) {
+            const realModels = enabledModels.filter(m => m.provider !== 'mock');
+            const targetModels = realModels.length > 0 ? realModels : enabledModels;
+            models = targetModels.map(m => m.id);
+        }
 
         if (enabledSubtests.length === 0 || models.length === 0) {
-            showToast('No enabled subtests or models.', 'error');
+            showToast('No enabled subtests or models configured.', 'error');
             return;
         }
 
