@@ -1,0 +1,13 @@
+{
+  "name": "anansi-workbench",
+  "version": "1.0.0",
+  "description": "AnansiWorkbench — Standalone LLM Experimentation Workbench",
+  "main": "index.html",
+  "scripts": {
+    "start": "http-server ./ -p 5500 --cors"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "http-server": "^14.1.1"
+  }
+}

@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AnansiWorkbench — LLM Experimentation Workbench</title>
+    <meta name="description"
+        content="Standalone, local-first LLM experimentation workbench for repeatable large-scale testing.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div id="app">
+
+        <!-- ████ TOP BAR ████ -->
+        <header id="topbar">
+            <div class="app-logo">
+                <span class="logo-icon">🔬</span>
+                <div>
+                    <div>AnansiWorkbench</div>
+                    <div class="logo-sub">LLM Experimentation</div>
+                </div>
+            </div>
+
+            <nav class="tab-nav" role="tablist" aria-label="Main navigation">
+                <button class="tab-btn active" data-tab="experiments" role="tab">🧪 Experiments</button>
+                <button class="tab-btn" data-tab="execution" role="tab">▶ Execution</button>
+                <button class="tab-btn" data-tab="review" role="tab">📋 Review</button>
+                <button class="tab-btn" data-tab="archive" role="tab">🗄 Archive</button>
+                <button class="tab-btn" data-tab="charts" role="tab">📊 Charts</button>
+                <button class="tab-btn" data-tab="import" role="tab">📥 Import</button>
+                <button class="tab-btn" data-tab="models" role="tab">🔌 Models</button>
+            </nav>
+
+            <div class="topbar-actions">
+                <button class="btn btn-sm" onclick="WorkbenchExport?.openBackupRestore?.()">⬆ Backup</button>
+            </div>
+        </header>
+
+        <!-- ████ MAIN CONTENT ████ -->
+        <main id="main">
+
+            <!-- ══════════════════════════════════════════════
+         EXPERIMENTS TAB
+    ══════════════════════════════════════════════ -->
+            <section id="tab-experiments" class="tab-panel active" role="tabpanel">
+                <div class="section-header">
+                    <h1 class="section-title">Experiments</h1>
+                    <div class="section-actions">
+                        <button class="btn btn-primary" id="btn-new-experiment">+ New Experiment</button>
+                    </div>
+                </div>
+                <div class="experiments-list" id="experiments-list">
+                    <div class="empty-state">
+                        <div class="empty-icon">🔬</div>
+                        <p>Loading…</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ══════════════════════════════════════════════
+         EXECUTION TAB
+    ══════════════════════════════════════════════ -->
+            <section id="tab-execution" class="tab-panel" role="tabpanel">
+                <!-- Left: active run -->
+                <div class="exec-main">
+                    <div class="exec-run-header">
+                        <div>
+                            <div class="exec-run-title" id="exec-run-title">No active run</div>
+                            <div class="exec-run-meta" id="exec-run-meta">Select an experiment and click Run to begin.
+                            </div>
+                        </div>
+                        <span class="status-badge badge-gray" id="exec-status-badge">○ Idle</span>
+                    </div>
+
+                    <!-- Uncertain job recovery -->
+                    <div id="uncertain-panel" class="uncertain-panel" style="display:none"></div>
+
+                    <!-- Controls -->
+                    <div class="exec-controls">
+                        <button class="btn btn-danger" id="btn-exec-cancel" style="display:none">■ Cancel</button>
+                        <button class="btn" id="btn-exec-pause" style="display:none">⏸ Pause</button>
+                        <button class="btn btn-primary" id="btn-exec-resume" style="display:none">▶ Resume</button>
+                        <button class="btn" id="btn-exec-retry" style="display:none">↺ Retry Failed</button>
+                    </div>
+
+                    <!-- Progress bar -->
+                    <div class="exec-progress-wrap">
+                        <div class="exec-progress-bar" id="exec-progress-bar"></div>
+                    </div>
+
+                    <!-- Stats grid -->
+                    <div class="exec-stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-value" id="stat-completed">0</div>
+                            <div class="stat-label">Completed</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="stat-pending">0</div>
+                            <div class="stat-label">Pending</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="stat-total">0</div>
+                            <div class="stat-label">Total</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="stat-active">0</div>
+                            <div class="stat-label">Active</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="stat-failed">0</div>
+                            <div class="stat-label">Failed</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="stat-pct">0%</div>
+                            <div class="stat-label">Complete</div>
+                        </div>
+                    </div>
+
+                    <!-- Timing -->
+                    <div class="flex-row">
+                        <div class="stat-card flex-1">
+                            <div class="stat-value" id="stat-elapsed">—</div>
+                            <div class="stat-label">Elapsed</div>
+                        </div>
+                        <div class="stat-card flex-1">
+                            <div class="stat-value" id="stat-eta">—</div>
+                            <div class="stat-label">Est. Remaining</div>
+                        </div>
+                    </div>
+
+                    <!-- Log -->
+                    <div class="panel">
+                        <div class="panel-header"><span class="panel-title">Activity Log</span></div>
+                        <div class="exec-log" id="exec-log"></div>
+                    </div>
+                </div>
+
+                <!-- Right: run history -->
+                <div class="exec-side">
+                    <div class="panel">
+                        <div class="panel-header"><span class="panel-title">Run History</span></div>
+                        <div class="panel-body">
+                            <div class="run-history-list" id="run-history-list">
+                                <div class="empty-state-sm">No runs yet.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ══════════════════════════════════════════════
+         REVIEW TAB
+    ══════════════════════════════════════════════ -->
+            <section id="tab-review" class="tab-panel" role="tabpanel">
+                <aside class="review-sidebar">
+                    <div class="review-sidebar-header">
+                        <div class="review-sidebar-title">Responses</div>
+                        <div class="review-sidebar-filters">
+                            <button class="filter-btn active" data-filter="all">All</button>
+                            <button class="filter-btn" data-filter="unreviewed">Unreviewed</button>
+                            <button class="filter-btn" data-filter="flagged">Flagged</button>
+                        </div>
+                    </div>
+                    <div class="review-nav-list" id="review-nav-list"></div>
+                </aside>
+                <div class="review-main" id="review-main">
+                    <div class="empty-state">
+                        <div class="empty-icon">📋</div>
+                        <p>Select a run from the Execution tab to review responses.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ══════════════════════════════════════════════
+         ARCHIVE TAB (Phase 2 placeholder)
+    ══════════════════════════════════════════════ -->
+            <section id="tab-archive" class="tab-panel" role="tabpanel">
+                <div class="section-header">
+                    <h1 class="section-title">Research Archive</h1>
+                </div>
+                <div class="empty-state">
+                    <div class="empty-icon">🗄</div>
+                    <p>Archive — coming in Phase 2</p>
+                    <p class="empty-sub">Searchable history of all experiments, runs, and responses.</p>
+                </div>
+            </section>
+
+            <!-- ══════════════════════════════════════════════
+         CHARTS TAB (Phase 3 placeholder)
+    ══════════════════════════════════════════════ -->
+            <section id="tab-charts" class="tab-panel" role="tabpanel">
+                <div class="section-header">
+                    <h1 class="section-title">Charts &amp; Analysis</h1>
+                </div>
+                <div class="empty-state">
+                    <div class="empty-icon">📊</div>
+                    <p>Charts — coming in Phase 3</p>
+                    <p class="empty-sub">Automatic visualization from Test Record Sheet data.</p>
+                </div>
+            </section>
+
+            <!-- ══════════════════════════════════════════════
+         IMPORT TAB (Phase 3 placeholder)
+    ══════════════════════════════════════════════ -->
+            <section id="tab-import" class="tab-panel" role="tabpanel">
+                <div class="section-header">
+                    <h1 class="section-title">Import</h1>
+                </div>
+                <div class="empty-state">
+                    <div class="empty-icon">📥</div>
+                    <p>AnansiForge Import — coming in Phase 3</p>
+                    <p class="empty-sub">Import characters, scenarios, and assembled bots from an AnansiForge backup.
+                    </p>
+                </div>
+            </section>
+
+            <!-- ══════════════════════════════════════════════
+         MODELS TAB
+    ══════════════════════════════════════════════ -->
+            <section id="tab-models" class="tab-panel" role="tabpanel">
+                <div class="section-header">
+                    <h1 class="section-title">Model Providers</h1>
+                    <div class="section-actions">
+                        <button class="btn btn-primary" id="btn-add-model">+ Add Model</button>
+                    </div>
+                </div>
+                <div class="models-list" id="models-list">
+                    <div class="empty-state">
+                        <div class="empty-icon">🔌</div>
+                        <p>Loading…</p>
+                    </div>
+                </div>
+            </section>
+
+        </main><!-- /#main -->
+
+    </div><!-- /#app -->
+
+    <!-- ████████████████████████████████████████████████████████
+     MODALS
+████████████████████████████████████████████████████████ -->
+
+    <!-- Generic Confirm -->
+    <div class="modal" id="modal-confirm" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+        <div class="modal-box modal-box-sm">
+            <div class="modal-header">
+                <span class="modal-title" id="confirm-title">Confirm</span>
+            </div>
+            <div class="modal-body">
+                <p id="confirm-message"></p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" data-confirm="no">Cancel</button>
+                <button class="btn btn-danger" data-confirm="yes">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Generic Prompt -->
+    <div class="modal" id="modal-prompt" role="dialog" aria-modal="true" aria-labelledby="prompt-title">
+        <div class="modal-box modal-box-sm">
+            <div class="modal-header">
+                <span class="modal-title" id="prompt-title">Enter value</span>
+            </div>
+            <div class="modal-body">
+                <p id="prompt-message" style="margin-bottom:10px"></p>
+                <textarea id="prompt-input" rows="6" style="width:100%;" autofocus></textarea>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" data-prompt="cancel">Cancel</button>
+                <button class="btn btn-primary" data-prompt="ok">OK</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Prompt Preview -->
+    <div class="modal" id="modal-preview" role="dialog" aria-modal="true" aria-labelledby="preview-title">
+        <div class="modal-box modal-box-lg">
+            <div class="modal-header">
+                <span class="modal-title" id="preview-title">Effective Prompt Preview</span>
+                <button class="modal-close" onclick="closeModal('modal-preview')">✕</button>
+            </div>
+            <div class="modal-body" id="preview-content"></div>
+            <div class="modal-footer">
+                <button class="btn" onclick="closeModal('modal-preview')">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Model Modal ──────────────────────────────────────────── -->
+    <div class="modal" id="modal-model" role="dialog" aria-modal="true" aria-labelledby="model-modal-title">
+        <div class="modal-box">
+            <div class="modal-header">
+                <span class="modal-title" id="model-modal-title">Add Model</span>
+                <button class="modal-close" onclick="closeModal('modal-model')">✕</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="model-form-id">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="model-form-name">Display Name *</label>
+                        <input type="text" id="model-form-name" placeholder="e.g. Gemma 4 via OpenRouter" autofocus>
+                    </div>
+                    <div class="form-group">
+                        <label for="model-form-provider">Provider Type</label>
+                        <select id="model-form-provider">
+                            <option value="openai_compatible">OpenAI-Compatible</option>
+                            <option value="mock">Mock (Testing)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="model-form-endpoint">API Endpoint</label>
+                    <input type="text" id="model-form-endpoint" placeholder="https://openrouter.ai/api/v1">
+                    <span class="hint">Leave blank to use OpenAI's default endpoint.</span>
+                </div>
+                <div class="form-group">
+                    <label for="model-form-identifier">Model Identifier</label>
+                    <input type="text" id="model-form-identifier" placeholder="google/gemma-3-27b-it">
+                    <span class="hint">Exact API-level model string used in requests.</span>
+                </div>
+                <div class="form-group">
+                    <label for="model-form-key">API Key</label>
+                    <input type="password" id="model-form-key" placeholder="sk-…" autocomplete="off">
+                    <span class="hint">Stored locally only. Never exported or logged.</span>
+                </div>
+                <hr class="divider">
+                <div class="form-row3">
+                    <div class="form-group">
+                        <label for="model-form-temp">Temperature</label>
+                        <input type="number" id="model-form-temp" min="0" max="2" step="0.05" value="0.9">
+                    </div>
+                    <div class="form-group">
+                        <label for="model-form-tokens">Max Tokens</label>
+                        <input type="number" id="model-form-tokens" min="1" value="500">
+                    </div>
+                    <div class="form-group">
+                        <label for="model-form-concurrency">Concurrency</label>
+                        <input type="number" id="model-form-concurrency" min="1" value="1">
+                    </div>
+                </div>
+                <div class="form-row3">
+                    <div class="form-group">
+                        <label for="model-form-timeout">Timeout (s)</label>
+                        <input type="number" id="model-form-timeout" min="5" value="30">
+                    </div>
+                    <div class="form-group">
+                        <label for="model-form-interval">Interval (s)</label>
+                        <input type="number" id="model-form-interval" min="0" step="0.5" value="1">
+                    </div>
+                    <div class="form-group">
+                        <label for="model-form-retry">Retry Limit</label>
+                        <input type="number" id="model-form-retry" min="0" value="3">
+                    </div>
+                </div>
+                <label class="checkbox-label">
+                    <input type="checkbox" id="model-form-enabled" checked> Enabled
+                </label>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" onclick="closeModal('modal-model')">Cancel</button>
+                <button class="btn btn-primary" id="model-form-save">Save Model</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Experiment Builder Modal ────────────────────────────── -->
+    <div class="modal" id="modal-builder" role="dialog" aria-modal="true" aria-labelledby="builder-modal-title">
+        <div class="modal-box modal-builder-box">
+            <div class="modal-header">
+                <span class="modal-title" id="builder-modal-title">New Experiment</span>
+                <button class="modal-close" onclick="closeModal('modal-builder')">✕</button>
+            </div>
+            <div class="modal-body">
+
+                <!-- Builder tabs -->
+                <div class="builder-tabs">
+                    <button class="builder-tab active"
+                        onclick="switchBuilderTab(this,'builder-tab-meta')">Metadata</button>
+                    <button class="builder-tab" onclick="switchBuilderTab(this,'builder-tab-prompt')">Prompt</button>
+                    <button class="builder-tab"
+                        onclick="switchBuilderTab(this,'builder-tab-config')">Configuration</button>
+                    <button class="builder-tab"
+                        onclick="switchBuilderTab(this,'builder-tab-subtests')">Subtests</button>
+                    <button class="builder-tab" onclick="switchBuilderTab(this,'builder-tab-fields')">Recording
+                        Fields</button>
+                </div>
+
+                <!-- Metadata -->
+                <div id="builder-tab-meta" class="builder-tab-panel">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="exp-form-title">Title *</label>
+                            <input type="text" id="exp-form-title" placeholder="e.g. Introduction Consistency Test"
+                                autofocus>
+                        </div>
+                        <div class="form-group">
+                            <label for="exp-form-status">Status</label>
+                            <select id="exp-form-status">
+                                <option value="Draft">Draft</option>
+                                <option value="Ready">Ready</option>
+                                <option value="Running">Running</option>
+                                <option value="In Review">In Review</option>
+                                <option value="Completed">Completed</option>
+                                <option value="Archived">Archived</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="exp-form-desc">Description</label>
+                        <textarea id="exp-form-desc" rows="3" placeholder="What is this experiment testing?"></textarea>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="exp-form-category">Category</label>
+                            <input type="text" id="exp-form-category" placeholder="e.g. Character Voicing">
+                        </div>
+                        <div class="form-group">
+                            <label for="exp-form-version">Version</label>
+                            <input type="text" id="exp-form-version" value="1.0" placeholder="1.0">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="exp-form-tags">Tags (comma-separated)</label>
+                        <input type="text" id="exp-form-tags" placeholder="voicing, DC, consistency">
+                    </div>
+                </div>
+
+                <!-- Prompt -->
+                <div id="builder-tab-prompt" class="builder-tab-panel" style="display:none">
+                    <div class="form-group">
+                        <div class="prompt-field-label">Personality</div>
+                        <textarea id="exp-form-personality" class="prompt-textarea" rows="7"
+                            placeholder="The character's personality definition. Supports {{User}} and other placeholders."></textarea>
+                        <span class="hint">Literal placeholders like {{User}} are preserved exactly as entered.</span>
+                    </div>
+                    <div class="form-group">
+                        <div class="prompt-field-label">Scenario</div>
+                        <textarea id="exp-form-scenario" class="prompt-textarea" rows="5"
+                            placeholder="World-building, scene context, and situational instructions."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <div class="prompt-field-label">Initial Message</div>
+                        <textarea id="exp-form-initial-msg" class="prompt-textarea" rows="5"
+                            placeholder="The character's opening message. Sent as an assistant turn."></textarea>
+                    </div>
+                    <button class="btn" id="btn-preview-prompt">👁 Preview Effective Prompt</button>
+                </div>
+
+                <!-- Configuration -->
+                <div id="builder-tab-config" class="builder-tab-panel" style="display:none">
+                    <h3
+                        style="font-size:13px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:14px;">
+                        Execution Defaults</h3>
+                    <div class="form-row3">
+                        <div class="form-group">
+                            <label for="exp-form-reps">Repetitions per Model</label>
+                            <input type="number" id="exp-form-reps" min="1" value="5">
+                        </div>
+                        <div class="form-group">
+                            <label for="exp-form-temp">Temperature</label>
+                            <input type="number" id="exp-form-temp" min="0" max="2" step="0.05" value="0.9">
+                        </div>
+                        <div class="form-group">
+                            <label for="exp-form-tokens">Max Tokens</label>
+                            <input type="number" id="exp-form-tokens" min="1" value="500">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="exp-form-interval">Min Request Interval (s)</label>
+                            <input type="number" id="exp-form-interval" min="0" step="0.5" value="1">
+                        </div>
+                        <div class="form-group">
+                            <label for="exp-form-concurrency">Max Concurrency</label>
+                            <input type="number" id="exp-form-concurrency" min="1" value="1">
+                        </div>
+                    </div>
+                    <hr class="divider">
+                    <h3
+                        style="font-size:13px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:14px;">
+                        Selected Models</h3>
+                    <div class="model-checkboxes" id="exp-model-checkboxes">
+                        <p class="hint">Loading models…</p>
+                    </div>
+                </div>
+
+                <!-- Subtests -->
+                <div id="builder-tab-subtests" class="builder-tab-panel" style="display:none">
+                    <div class="subtest-toolbar">
+                        <button class="btn btn-primary" id="btn-add-subtest">+ Add Subtest</button>
+                        <button class="btn" id="btn-bulk-create">⊕ Bulk Create</button>
+                        <span class="hint flex-1">Drag rows to reorder.</span>
+                    </div>
+                    <div style="height:12px"></div>
+                    <div class="subtest-list" id="subtest-list">
+                        <div class="empty-state-sm">Save the experiment first, then add subtests here.</div>
+                    </div>
+                </div>
+
+                <!-- Recording Fields -->
+                <div id="builder-tab-fields" class="builder-tab-panel" style="display:none">
+                    <div class="subtest-toolbar">
+                        <button class="btn btn-primary" id="btn-add-field-schema">+ Add Recording Field</button>
+                        <span class="hint flex-1">Define custom metrics (ratings, notes, checkboxes) to record during
+                            response review.</span>
+                    </div>
+                    <div style="height:12px"></div>
+                    <div class="subtest-list" id="field-schema-list">
+                        <div class="empty-state-sm">No custom fields defined yet.</div>
+                    </div>
+                </div>
+
+            </div>
+            <div class="modal-footer">
+                <button class="btn" onclick="closeModal('modal-builder')">Close</button>
+                <button class="btn btn-primary" id="exp-builder-save">💾 Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Subtest Editor Modal ────────────────────────────────── -->
+    <div class="modal" id="modal-subtest" role="dialog" aria-modal="true" aria-labelledby="subtest-modal-title">
+        <div class="modal-box modal-box-lg">
+            <div class="modal-header">
+                <span class="modal-title" id="subtest-modal-title">Subtest</span>
+                <button class="modal-close" onclick="closeModal('modal-subtest')">✕</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="st-form-idx">
+                <input type="hidden" id="st-form-id">
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="st-form-title">Subtest Title *</label>
+                        <input type="text" id="st-form-title" placeholder="e.g. Bruce Wayne" autofocus>
+                    </div>
+                    <div class="form-group">
+                        <label for="st-form-tags">Tags (comma-separated)</label>
+                        <input type="text" id="st-form-tags" placeholder="">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="st-form-desc">Description</label>
+                    <input type="text" id="st-form-desc" placeholder="Optional notes about this subtest">
+                </div>
+                <div class="form-group">
+                    <label for="st-form-responses">User Responses (one per line) *</label>
+                    <textarea id="st-form-responses" rows="4" placeholder="Tell me about yourself."></textarea>
+                    <span class="hint">Each line becomes a separate test case. All will use these same experiment and
+                        override settings.</span>
+                </div>
+
+                <hr class="divider">
+                <h3
+                    style="font-size:12px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px;">
+                    Overrides (inherit from experiment unless checked)</h3>
+
+                <div class="override-section">
+                    <div class="override-header">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="st-override-personality"> Override Personality
+                        </label>
+                        <span class="override-badge">INHERITED</span>
+                    </div>
+                    <div id="st-panel-personality" class="override-panel" style="display:none">
+                        <div class="prompt-field-label">Personality</div>
+                        <textarea id="st-form-personality" class="prompt-textarea" rows="5"></textarea>
+                    </div>
+                </div>
+
+                <div class="override-section">
+                    <div class="override-header">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="st-override-scenario"> Override Scenario
+                        </label>
+                        <span class="override-badge">INHERITED</span>
+                    </div>
+                    <div id="st-panel-scenario" class="override-panel" style="display:none">
+                        <div class="prompt-field-label">Scenario</div>
+                        <textarea id="st-form-scenario" class="prompt-textarea" rows="5"></textarea>
+                    </div>
+                </div>
+
+                <div class="override-section">
+                    <div class="override-header">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="st-override-initial"> Override Initial Message
+                        </label>
+                        <span class="override-badge">INHERITED</span>
+                    </div>
+                    <div id="st-panel-initial" class="override-panel" style="display:none">
+                        <div class="prompt-field-label">Initial Message</div>
+                        <textarea id="st-form-initial-msg" class="prompt-textarea" rows="5"></textarea>
+                    </div>
+                </div>
+
+                <div class="override-section">
+                    <div class="override-header">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="st-override-reps"> Override Repetition Count
+                        </label>
+                        <span class="override-badge">INHERITED</span>
+                    </div>
+                    <div id="st-panel-reps" class="override-panel" style="display:none">
+                        <div class="form-group">
+                            <label for="st-form-reps">Repetitions per Model</label>
+                            <input type="number" id="st-form-reps" min="1" value="5">
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+            <div class="modal-footer">
+                <button class="btn" onclick="closeModal('modal-subtest')">Cancel</button>
+                <button class="btn btn-primary" id="st-form-save">Save Subtest</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Field Schema Editor Modal ────────────────────────── -->
+    <div class="modal" id="modal-field-schema" role="dialog" aria-modal="true" aria-labelledby="field-modal-title">
+        <div class="modal-box">
+            <div class="modal-header">
+                <span class="modal-title" id="field-modal-title">Add Recording Field</span>
+                <button class="modal-close" onclick="closeModal('modal-field-schema')">✕</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="field-form-id">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="field-form-name">Field Name *</label>
+                        <input type="text" id="field-form-name" placeholder="e.g. Tone Consistency, Persona Rating"
+                            autofocus>
+                    </div>
+                    <div class="form-group">
+                        <label for="field-form-type">Field Type *</label>
+                        <select id="field-form-type" onchange="WorkbenchExperiments.onFieldTypeChange(this.value)">
+                            <option value="checkbox">☑️ Checkbox (Yes/No)</option>
+                            <option value="single_choice">🔘 Single Choice (Dropdown)</option>
+                            <option value="multi_choice">☑️ Multiple Choice (Checkboxes)</option>
+                            <option value="rating">⭐ Rating (1-5 Stars)</option>
+                            <option value="integer">🔢 Integer Number</option>
+                            <option value="decimal">📐 Decimal Number</option>
+                            <option value="short_text">✍️ Short Text</option>
+                            <option value="long_text">📝 Long Text / Notes</option>
+                            <option value="timestamp">⏱️ Timestamp</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="field-form-desc">Description / Prompt</label>
+                    <input type="text" id="field-form-desc" placeholder="Instructions for the reviewer">
+                </div>
+                <div class="form-group" id="field-form-options-group" style="display:none;">
+                    <label for="field-form-options">Options (one per line)</label>
+                    <textarea id="field-form-options" rows="3"
+                        placeholder="Option 1&#10;Option 2&#10;Option 3"></textarea>
+                </div>
+                <div class="form-group" id="field-form-default-group">
+                    <label for="field-form-default">Default Value</label>
+                    <input type="text" id="field-form-default" placeholder="Optional default value">
+                </div>
+                <label class="checkbox-label">
+                    <input type="checkbox" id="field-form-required"> Required field during review
+                </label>
+            </div>
+            <div class="modal-footer">
+                <button class="btn" onclick="closeModal('modal-field-schema')">Cancel</button>
+                <button class="btn btn-primary" id="field-form-save">Save Field</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ████████████████████████████████████████████████████████
+     SCRIPTS
+████████████████████████████████████████████████████████ -->
+    <script src="js/db.js"></script>
+    <script src="js/app.js"></script>
+    <script src="js/models.js"></script>
+    <script src="js/record_sheet.js"></script>
+    <script src="js/experiments.js"></script>
+    <script src="js/execution.js"></script>
+    <script src="js/review.js"></script>
+    <script src="js/archive.js"></script>
+    <script src="js/export.js"></script>
+    <script src="js/charts.js"></script>
+    <script src="js/import.js"></script>
+    <script src="tests/mock-provider.js"></script>
+    <script src="tests/run-tests.js"></script>
+
+    <script>
+        // Builder tab switching
+        function switchBuilderTab(btn, panelId) {
+            document.querySelectorAll('.builder-tab').forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.builder-tab-panel').forEach(p => p.style.display = 'none');
+            btn.classList.add('active');
+            const panel = document.getElementById(panelId);
+            if (panel) panel.style.display = '';
+
+            // Refresh model list when config tab is shown
+            if (panelId === 'builder-tab-config') {
+                WorkbenchModels.getModels().then(models => {
+                    const exp = WorkbenchExperiments;
+                    // Re-render model checkboxes using current experiment defaults
+                    const editingId = WorkbenchState?.selectedExperimentId;
+                    WorkbenchDB.getExperiment(editingId).then(expData => {
+                        const selected = expData?.defaultModels || [];
+                        const container = document.getElementById('exp-model-checkboxes');
+                        if (!container) return;
+                        if (!models || models.length === 0) {
+                            container.innerHTML = '<p class="hint">No models configured. Add one in the Models tab.</p>';
+                            return;
+                        }
+                        container.innerHTML = models.map(m =>
+                            `<label class="checkbox-label">
+              <input type="checkbox" name="exp-model" value="${m.id}" ${selected.includes(m.id) ? 'checked' : ''}>
+              ${m.name}
+            </label>`
+                        ).join('');
+                    });
+                });
+            }
+        }
+    </script>
+
+</body>
+
+</html>

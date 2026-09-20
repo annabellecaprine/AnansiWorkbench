@@ -1,0 +1,1121 @@
+
+# PROJECT: STANDALONE MULTI-MODEL LLM TESTING WORKBENCH
+
+You are tasked with designing and implementing a standalone application for conducting repeatable, large-scale experiments with Large Language Models.
+
+This is a full application development project, not a request for an architectural proposal or a proof-of-concept document.
+
+Build a functional application, implement its core features, test its operation, and provide clear instructions for running it.
+
+The application will be part of the broader AnansiForge creative ecosystem, but it must operate independently of AnansiForge.
+
+Do not begin by modifying AnansiForge or attempting to integrate the application into its existing interface.
+
+Read this specification completely before beginning implementation.
+
+==================================================
+1. FUNDAMENTAL PURPOSE
+==================================================
+
+The application is a test-agnostic LLM experimentation workbench.
+
+Its primary function is to:
+
+1. Accept a Personality.
+2. Accept a Scenario.
+3. Accept an Initial Message.
+4. Accept a predefined user response.
+5. Submit that conversation to one or more configured LLMs.
+6. Generate a configurable number of independent responses from each LLM.
+7. Store every response and its execution metadata.
+8. Present the results in an organized, searchable interface.
+9. Allow the user to record observations using customizable data fields.
+10. Generate graphs and comparisons from the recorded data.
+
+The application must not assume what the user is testing.
+
+Possible experiments include:
+
+- Character voicing consistency.
+- Character behavior.
+- Narrative continuity.
+- Instruction adherence.
+- Dynamic narrative outcome mechanics.
+- Player-agency preservation.
+- Ensemble character participation.
+- Differences between LLMs.
+- Differences between versions of the same prompt.
+
+These are examples of user-defined experiments, NOT features requiring specialized implementations.
+
+The application must not contain hardcoded evaluation logic for any of these topics.
+
+A character voicing experiment and a combat resolution experiment must use the same underlying execution engine.
+
+The user defines what is being tested and what information should be recorded.
+
+The application handles execution, organization, storage, searching, and visualization.
+
+==================================================
+2. CRITICAL: STANDALONE APPLICATION
+==================================================
+
+This application must be completely independent of AnansiForge.
+
+It must have its own:
+
+- Application interface.
+- Database.
+- Configuration.
+- API provider settings.
+- Execution engine.
+- Research archive.
+- File import functionality.
+
+It must function without AnansiForge being installed or running.
+
+DO NOT:
+
+- Implement it as an AnansiForge addon.
+- Embed it inside AnansiForge.
+- Require access to AnansiForge's live database.
+- Depend on AnansiForge's internal services.
+- Modify AnansiForge's source code.
+- Modify AnansiForge's existing data.
+
+AnansiForge compatibility is required, but only as a means of importing and using compatible assets.
+
+Imported assets must become independent local copies within the testing application.
+
+The user must be able to edit those copies without affecting the original AnansiForge data.
+
+==================================================
+3. DEVELOPMENT ENVIRONMENT AND TECHNOLOGY
+==================================================
+
+Inspect the existing development environment before selecting the implementation stack.
+
+Choose a practical architecture for a locally operated application.
+
+A Python backend, SQLite database, and local web-based interface are acceptable, but use another stack if the existing environment makes it more appropriate.
+
+Prioritize:
+
+- Reliability.
+- Local operation.
+- Persistent storage.
+- A responsive interface.
+- Simple installation and launching.
+- Maintainable, modular code.
+- Compatibility with multiple API providers.
+
+The application must support long-running batch jobs independently of the review interface.
+
+Closing the interface must not terminate an active batch if the application worker remains running.
+
+Use a persistent execution queue.
+
+Do not rely on a browser tab remaining open to retain execution state.
+
+Do not add unnecessary cloud infrastructure or require a hosted service.
+
+==================================================
+4. EXPERIMENT HIERARCHY
+==================================================
+
+The application must support the following hierarchy:
+
+EXPERIMENT
+    EXECUTION RUN
+        SUBTEST
+            TEST CASE
+                MODEL
+                    ITERATION
+                        RESPONSE
+                        TEST RECORD
+
+An Experiment is the reusable definition.
+
+An Execution Run is a historical snapshot of one execution of that definition.
+
+A Subtest organizes related test cases.
+
+A Test Case contains a specific user response and its effective prompt configuration.
+
+A Model represents a selected API model.
+
+An Iteration is one independent generation.
+
+A Response contains the actual generated output.
+
+A Test Record contains the user's recorded observations.
+
+These entities must remain logically distinct.
+
+==================================================
+5. EXPERIMENT BUILDER
+==================================================
+
+Provide an interface for creating and editing experiments.
+
+Every experiment must contain standard searchable metadata:
+
+- Unique ID.
+- Title.
+- Description.
+- Category.
+- User-defined tags.
+- Version label.
+- Creation date.
+- Last modified date.
+- Status.
+
+Suggested statuses:
+
+Draft
+Ready
+Running
+In Review
+Completed
+Archived
+
+Categories and tags must be user-configurable.
+
+Do not restrict them to predefined testing subjects.
+
+The Experiment Builder must provide fields for:
+
+PERSONALITY
+
+SCENARIO
+
+INITIAL MESSAGE
+
+These must remain separate, editable text fields.
+
+Preserve formatting, line breaks, special characters, and roleplay placeholders.
+
+Do not automatically rewrite, summarize, optimize, or otherwise modify their contents.
+
+The experiment also defines shared defaults for:
+
+- Selected models.
+- Repetition count.
+- Generation parameters.
+- Request throttling.
+- Maximum output length.
+- Test Record Sheet fields.
+
+Subtests inherit these defaults unless explicitly overridden.
+
+==================================================
+6. SUBTEST BUILDER
+==================================================
+
+An experiment may contain any number of subtests.
+
+Each subtest must support:
+
+- Title.
+- Description.
+- Optional tags.
+- One or more predefined user responses.
+- Optional Personality override.
+- Optional Scenario override.
+- Optional Initial Message override.
+- Optional model selection override.
+- Optional repetition count override.
+- Additional Test Record Sheet fields.
+
+Subtests must inherit their parent experiment's settings unless an override is configured.
+
+Clearly identify inherited and overridden settings in the interface.
+
+Provide a preview of the effective prompt configuration.
+
+Support:
+
+- Creating subtests.
+- Editing subtests.
+- Duplicating subtests.
+- Reordering subtests.
+- Disabling subtests.
+- Bulk creation or import.
+
+Bulk creation is important.
+
+A user may want to test 180 characters under the same general conditions.
+
+The application must not require manually constructing 180 nearly identical configurations.
+
+==================================================
+7. EXAMPLE: LARGE CHARACTER INTRODUCTION TEST
+==================================================
+
+Consider the following experiment.
+
+EXPERIMENT:
+Introduction Test
+
+DESCRIPTION:
+Evaluate how consistently different LLMs portray individual characters when asked to introduce themselves.
+
+SUBTESTS:
+Bruce Wayne
+Barry Allen
+Clark Kent
+Diana Prince
+...approximately 180 characters.
+
+Each character may have their own Personality, Scenario, and Initial Message.
+
+The predefined user response might be:
+
+"Tell me about yourself."
+
+SELECTED MODELS:
+Gemma 4
+DeepSeek
+GLM
+Two additional configured models.
+
+REPETITIONS:
+25 per model.
+
+The application must support the resulting 22,500 generation jobs.
+
+Results must be organized as:
+
+Introduction Test
+    Run 001
+        Bruce Wayne
+            Gemma 4
+                Iteration 1
+                Iteration 2
+                ...
+                Iteration 25
+            DeepSeek
+                Iteration 1
+                ...
+            GLM
+                ...
+        Barry Allen
+            Gemma 4
+                ...
+            DeepSeek
+                ...
+        Remaining characters
+            ...
+
+This is an example of scale and organization.
+
+Do not hardcode DC characters or character-specific testing into the application.
+
+==================================================
+8. MODEL PROVIDER MANAGER
+==================================================
+
+The user must be able to configure multiple API-based LLMs.
+
+Provide a model management interface supporting:
+
+- Provider name.
+- Model display name.
+- Exact API model identifier.
+- API endpoint, where applicable.
+- API key or authentication configuration.
+- Temperature, where supported.
+- Maximum output tokens.
+- Additional supported generation parameters.
+- Request timeout.
+- Request interval.
+- Concurrency limit.
+
+Use a provider-adapter architecture.
+
+Support OpenAI-compatible APIs where appropriate.
+
+Allow other API formats through additional adapters.
+
+Do not assume every model accepts identical request parameters.
+
+The application must be able to test multiple configured models within the same experiment.
+
+Do not hardcode model names.
+
+A model's friendly display name and actual provider identifier must be stored separately.
+
+Preserve the model identifier returned by the provider when available.
+
+Do not assume that JanitorAI's JLLM exposes an external API.
+
+If a supported, authorized endpoint exists, it may be configured through an appropriate adapter.
+
+Otherwise, the application must remain usable with independently accessible models.
+
+Provide a connection test for each configured provider.
+
+API credentials must be stored securely and must never appear in exported test results or application logs.
+
+==================================================
+9. PROMPT CONSTRUCTION
+==================================================
+
+The application must construct a conversation containing:
+
+1. The bot's configured Personality and Scenario.
+2. The bot's Initial Message.
+3. The predefined user response.
+
+The Initial Message must be represented as an assistant message.
+
+The predefined response must be represented as a user message.
+
+Personality and Scenario should be placed in appropriate instruction fields or message roles supported by the provider.
+
+Make prompt formatting explicit and inspectable.
+
+Do not silently introduce unrelated instructions or modify the author's original content.
+
+Some provider APIs use different message-role structures.
+
+The provider adapter is responsible for handling those differences.
+
+Store the effective prompt and relevant request parameters with each execution.
+
+Preserve literal placeholders such as {{User}}.
+
+If placeholder substitution is supported, it must be explicitly configured.
+
+Do not accidentally process roleplay placeholders as application template syntax.
+
+==================================================
+10. BATCH EXECUTION
+==================================================
+
+For the initial implementation, every iteration must be an independent, fresh conversation.
+
+Example:
+
+Personality + Scenario
+Initial Message
+User Response
+Generate Response
+
+Save the response.
+
+Reset to the original conversation.
+
+Repeat.
+
+The previous iteration's generated response must NOT be included in the next iteration's context.
+
+This is essential for measuring variation across independent generations.
+
+The default execution order should be:
+
+Experiment
+    Subtest
+        Test Case
+            Model
+                All repetitions
+
+Complete all configured repetitions for each selected model before advancing to the next test case.
+
+This keeps related results together.
+
+The application should allow completed results to be reviewed while subsequent jobs continue executing.
+
+Persistent multi-turn testing may be added later as a separate execution mode.
+
+Do not accidentally turn single-response repetitions into continuing conversations.
+
+==================================================
+11. THROTTLING AND RATE LIMITS
+==================================================
+
+The application must support controlled request pacing.
+
+Provide configurable:
+
+- Minimum interval between requests.
+- Maximum simultaneous requests.
+- Per-provider concurrency limits.
+- Per-provider request intervals.
+- Request timeouts.
+- Retry limits.
+- Retry backoff.
+
+Default to conservative settings.
+
+Prefer reliability over maximum throughput.
+
+Respect provider rate limits and retry-after information where available.
+
+Do not attempt to evade provider restrictions.
+
+A provider failure should not unnecessarily terminate an entire experiment.
+
+Record the failure and continue with other eligible jobs.
+
+Distinguish unsuccessful API requests from valid generated responses.
+
+==================================================
+12. PERSISTENT EXECUTION QUEUE
+==================================================
+
+Large experiments may require many hours.
+
+Implement a persistent job queue that survives application restarts.
+
+Save each successful response immediately.
+
+Do not hold all responses in memory until the batch finishes.
+
+Support the following controls:
+
+START
+PAUSE
+RESUME
+CANCEL REMAINING JOBS
+RETRY FAILED JOBS
+
+Pausing should prevent new requests from starting while allowing active requests to complete safely.
+
+Resuming must continue the existing run.
+
+Completed jobs must not be regenerated automatically.
+
+If the application crashes during a request, preserve the attempt's status accurately.
+
+Do not assume a request failed merely because its response was not saved.
+
+Provide a mechanism for recovering uncertain jobs.
+
+The execution interface should display:
+
+- Total jobs.
+- Completed jobs.
+- Pending jobs.
+- Active jobs.
+- Failed jobs.
+- Current subtest.
+- Current model.
+- Current repetition.
+- Elapsed time.
+- Approximate remaining time, when meaningful.
+
+Where supported, record token usage and provider-reported costs.
+
+Allow configurable limits to help prevent unintended API spending.
+
+==================================================
+13. IMMUTABLE EXECUTION HISTORY
+==================================================
+
+This is a critical requirement.
+
+A reusable Experiment Definition must be separate from an Execution Run.
+
+Every execution creates a new Run ID.
+
+Snapshot the exact configuration used for that run.
+
+This includes:
+
+- Experiment metadata.
+- Selected subtests.
+- Test cases.
+- Effective Personality.
+- Effective Scenario.
+- Effective Initial Message.
+- Predefined user responses.
+- Model selections.
+- Generation parameters.
+- Test Record Sheet schema.
+- Source asset references and relevant content hashes.
+
+Editing the reusable experiment must not change any historical run.
+
+Rerunning an experiment must never overwrite previous results.
+
+Example:
+
+Introduction Test
+    Run 001: Original personalities
+    Run 002: Revised personalities
+    Run 003: Updated model configuration
+
+All runs remain independently accessible.
+
+Clearly distinguish:
+
+RUN:
+Create a new execution.
+
+RERUN:
+Create a new execution from an existing test definition.
+
+RESUME:
+Continue an interrupted execution.
+
+RETRY:
+Attempt to complete a failed job in its existing execution.
+
+Historical raw responses must never be silently replaced.
+
+==================================================
+14. CUSTOMIZABLE TEST RECORD SHEETS
+==================================================
+
+The user must configure recording fields when creating the experiment.
+
+Every generated response must have a corresponding Test Record Sheet based on that configuration.
+
+The application must not assume what the user wants to measure.
+
+Support custom field types including:
+
+- Checkbox.
+- Single-choice selection.
+- Multiple-choice selection.
+- Integer.
+- Decimal.
+- Rating scale.
+- Short text.
+- Long text.
+- Date or timestamp.
+
+Each field must support:
+
+- Name.
+- Description.
+- Type.
+- Available options.
+- Required or optional status.
+- Display order.
+- Default value, where applicable.
+
+Use stable internal field IDs.
+
+Experiment-level fields must be inherited by subtests.
+
+Subtests may add additional recording fields.
+
+The user should be able to configure different recording criteria for different subtests without affecting the execution engine.
+
+Example:
+
+EXPERIMENT RECORD FIELDS:
+Overall assessment
+Reviewer notes
+
+SUBTEST: Character Voicing
+Additional fields:
+Voice recognizable
+Characterization consistent
+Mannerisms overused
+
+SUBTEST: Dynamic Universe Response
+Additional fields:
+Resolution required
+Outcome followed
+Player agency preserved
+
+These are examples only.
+
+The application must not implement any special evaluation logic for them.
+
+==================================================
+15. DEBUG TRACKER PRESET
+==================================================
+
+Include an optional setting labeled:
+
+"Enable / Disable Debug Tracker for Scenario"
+
+This setting is only a convenience feature for configuring recording fields.
+
+When enabled, it adds predefined, editable debug-related fields to the Test Record Sheet.
+
+It does NOT:
+
+- Modify the Scenario.
+- Insert instructions into prompts.
+- Automatically detect debug headers.
+- Parse model responses.
+- Evaluate model behavior.
+- Mark responses as successful or unsuccessful.
+
+The user is responsible for any debug instructions in the Scenario.
+
+The user is also responsible for reviewing the model's output and entering the relevant observations.
+
+A model's self-reported debug information is not authoritative evidence of successful behavior.
+
+The Test Record Sheet remains the place where observations are recorded.
+
+==================================================
+16. RESULTS REVIEW INTERFACE
+==================================================
+
+Provide an in-app interface for reviewing generated responses.
+
+Results should be navigable by:
+
+Experiment
+Run
+Subtest
+Test Case
+Model
+Iteration
+
+The primary view should organize responses by test case and model.
+
+Also allow users to display all responses for a selected model or test case together.
+
+For each response, display:
+
+- Original user response.
+- Model name and identifier.
+- Iteration number.
+- Complete generated response.
+- Test Record Sheet.
+- Review status.
+
+Provide convenient navigation between responses.
+
+Support:
+
+- Previous response.
+- Next response.
+- Save and next.
+- Mark for further review.
+- Filter unreviewed responses.
+- View all repetitions together.
+- Compare different models.
+- Search response text.
+
+The user must be able to review completed results while other jobs are still running.
+
+Store review data separately from the original model response.
+
+Review data may be edited.
+
+Original generated evidence must remain preserved.
+
+Do not require every response to receive a completed review.
+
+==================================================
+17. SEARCHABLE RESEARCH ARCHIVE
+==================================================
+
+Every experiment, run, response, and review record must be saved.
+
+Provide a persistent research archive.
+
+Support searching and filtering by:
+
+- Experiment title.
+- Description.
+- Category.
+- Tags.
+- Version.
+- Date.
+- Status.
+- Model.
+- Subtest.
+- Test case.
+- Review status.
+- Custom recording fields.
+- Response text.
+
+Users should be able to revisit an experiment months later and retrieve:
+
+- Its original configuration.
+- Every execution run.
+- The exact prompts used.
+- All generated responses.
+- Recorded observations.
+- Associated graphs.
+
+Support duplicating an experiment definition.
+
+Do not duplicate historical responses as if they were newly generated.
+
+Provide a practical backup and restore mechanism.
+
+Use appropriate database indexes and full-text search.
+
+The archive must remain usable with tens of thousands of saved responses.
+
+==================================================
+18. AUTOMATIC DATA VISUALIZATION
+==================================================
+
+Generate appropriate graphs from Test Record Sheet field types.
+
+The graphing system must not need to understand the experiment's subject matter.
+
+Suggested automatic mappings:
+
+Checkbox:
+Counts and percentages.
+
+Single choice:
+Category distribution.
+
+Multiple choice:
+Frequency per selected category.
+
+Numeric:
+Histogram, distribution, and summary statistics.
+
+Rating:
+Rating distribution and comparisons.
+
+Timestamp:
+Time-based trends.
+
+Long text:
+Searchable observations rather than invented quantitative metrics.
+
+Allow users to compare data across:
+
+- Models.
+- Test cases.
+- Subtests.
+- Experiment runs.
+- Scenario revisions.
+
+Support customizable and saved charts.
+
+Allow charts to be pinned to an experiment dashboard.
+
+Include the number of reviewed observations behind every percentage.
+
+Missing or unreviewed data must not automatically count as zero, success, or failure.
+
+Provide a way to navigate from a chart's underlying data category to the corresponding response records.
+
+For example, clicking a category in a graph should allow the user to inspect the responses associated with that category.
+
+The graphing system must operate on recorded data.
+
+Do not introduce an AI evaluator to generate conclusions.
+
+==================================================
+19. ANANSIFORGE VAULT COMPATIBILITY
+==================================================
+
+The application must support importing compatible AnansiForge assets.
+
+This is file-based interoperability, not live application integration.
+
+Inspect representative AnansiForge Vault files, master backups, and assembled bot exports to determine their actual structure.
+
+Do not invent a schema.
+
+If representative files are not available, implement the import adapter interface and request a sample before claiming full compatibility.
+
+The import system should support recognized reusable components and assembled bot data.
+
+AnansiForge components may include:
+
+- Characters.
+- Organizations.
+- Scenarios.
+- Initial Messages.
+- Character Bios.
+
+Character and Organization components may contribute to Personality.
+
+Scenario components contribute to Scenario.
+
+Initial Message components contribute to the opening assistant message.
+
+Character Bios may be imported as available source material but should not automatically be inserted into Personality.
+
+Use actual project mappings when available.
+
+Do not assume all components belong to the same prompt field.
+
+For assembled character cards, support extracting their existing Personality, Scenario, and Initial Message.
+
+Avoid importing both compiled content and its source components into the same fields unless explicitly requested.
+
+This could otherwise duplicate large sections of prompt content.
+
+Provide an import preview showing:
+
+- Recognized file format.
+- Detected projects or components.
+- Selected source assets.
+- Proposed field mappings.
+- Missing information.
+- Ambiguous mappings.
+
+Allow the user to correct mappings before import.
+
+Preserve source IDs, names, categories, and relevant metadata.
+
+Imported content must become an independent copy.
+
+Editing imported content must not modify the source file.
+
+Reimporting the same asset must not silently overwrite existing experiment definitions or historical runs.
+
+The application must remain fully functional without AnansiForge files.
+
+==================================================
+20. DATA EXPORT
+==================================================
+
+Support exporting:
+
+- Experiment definitions.
+- Historical run configurations.
+- Raw model responses.
+- Test Record Sheet data.
+- Chart data.
+
+Use JSON and CSV where appropriate.
+
+JSON exports should preserve the relevant hierarchy and metadata.
+
+CSV exports should support analysis of individual responses and recorded observations.
+
+Allow exports of individual experiments, runs, and subtests.
+
+Never include API credentials in exported data.
+
+==================================================
+21. SECURITY AND DATA INTEGRITY
+==================================================
+
+Store API credentials securely.
+
+Never include credentials in logs, exported experiments, or response records.
+
+Only send the configured prompt content to the selected provider.
+
+Do not transmit unrelated Vault assets or historical test data.
+
+Treat imported files and model responses as untrusted content.
+
+Never execute instructions contained in a model response as application commands.
+
+Never permit generated text to modify credentials, files, experiment configurations, or execution settings.
+
+Preserve the original response text exactly as received.
+
+Separate raw evidence from user-entered evaluation data.
+
+Ensure database operations are safe during concurrent execution and review.
+
+Use transactions where appropriate.
+
+==================================================
+22. IMPLEMENTATION STRATEGY
+==================================================
+
+Implement the application in functional stages.
+
+Do not attempt to build every feature simultaneously.
+
+However, design the data model and interfaces to accommodate the complete specification.
+
+PHASE 1: FUNCTIONAL FOUNDATION
+
+Implement:
+
+- Standalone application shell.
+- Experiment Builder.
+- Subtest and test-case configuration.
+- Model Provider Manager.
+- Prompt construction.
+- Persistent batch execution.
+- Request throttling.
+- Raw response storage.
+- Basic results review.
+
+The first milestone is a functioning end-to-end batch.
+
+PHASE 2: RESEARCH RECORDS
+
+Implement:
+
+- Custom Test Record Sheets.
+- Field inheritance.
+- Manual review.
+- Review status.
+- Searchable archive.
+- Immutable execution history.
+- Export functionality.
+
+PHASE 3: ANALYSIS AND COMPATIBILITY
+
+Implement:
+
+- Automatic graph generation.
+- Saved dashboards.
+- Historical comparisons.
+- AnansiForge Vault import.
+- Assembled bot import.
+- Import preview and mapping correction.
+
+Adjust the sequence if necessary to accommodate technical dependencies.
+
+Do not sacrifice data integrity or run history for interface polish.
+
+==================================================
+23. AUTOMATED ACCEPTANCE TESTS
+==================================================
+
+Implement mock model providers so the application can be tested without consuming paid API credits.
+
+At minimum, verify the following scenarios.
+
+TEST A: BATCH COUNT
+
+Create an experiment containing:
+
+2 test cases.
+3 models.
+5 repetitions.
+
+Verify that exactly 30 successful responses are generated and stored.
+
+TEST B: INDEPENDENT CONTEXT
+
+Verify that every repetition receives the same initial configured conversation.
+
+Previous generated responses must not appear in subsequent repetitions.
+
+TEST C: CONFIGURATION INHERITANCE
+
+Override Personality for one subtest.
+
+Verify that only that subtest uses the override.
+
+TEST D: HISTORICAL PRESERVATION
+
+Execute an experiment.
+
+Modify its Scenario.
+
+Execute it again.
+
+Verify that both runs retain their original configurations and results.
+
+TEST E: INTERRUPTION AND RECOVERY
+
+Interrupt a batch after several responses have been saved.
+
+Restart the worker.
+
+Verify that the existing run resumes without discarding or duplicating completed responses.
+
+TEST F: PROVIDER FAILURE
+
+Simulate timeouts, authentication failures, and rate limits.
+
+Verify correct error recording, retries, and continuation of unrelated jobs.
+
+TEST G: RECORDING FIELDS
+
+Create custom fields and enter review data.
+
+Verify that results remain associated with the correct fields after editing display names.
+
+TEST H: VISUALIZATION
+
+Enter categorical and numeric review data.
+
+Verify that appropriate graphs are produced.
+
+Verify that graphs exclude unreviewed observations from reviewed-only statistics.
+
+TEST I: VAULT COMPATIBILITY
+
+Using representative AnansiForge fixtures, verify correct import into Personality, Scenario, and Initial Message.
+
+Verify that original source files remain unchanged.
+
+TEST J: LARGE-BATCH PREPARATION
+
+Construct an experiment with 180 subtests, 5 mock models, and 25 repetitions.
+
+Verify that the application correctly creates and counts 22,500 generation jobs.
+
+Verify that the queue, database, and interface can handle the workload without requiring all jobs or responses to remain in memory.
+
+==================================================
+24. REQUIRED DELIVERABLES
+==================================================
+
+Produce:
+
+1. A functioning standalone application.
+2. Complete source code.
+3. Dependency and environment configuration.
+4. Database schema and migrations.
+5. Provider adapter interface.
+6. Persistent execution worker.
+7. Experiment and Subtest Builder.
+8. Test Record Sheet Builder.
+9. Results Review Interface.
+10. Searchable research archive.
+11. Data visualization functionality.
+12. AnansiForge import adapter.
+13. Automated tests and mock providers.
+14. Clear installation and launch instructions.
+15. Instructions for configuring API providers.
+16. Instructions for running, pausing, resuming, and reviewing experiments.
+
+Document any features that remain incomplete or require external resources.
+
+Do not claim compatibility with an untested provider or file format.
+
+Do not substitute a design document for a working implementation.
+
+==================================================
+25. HOW TO PROCEED
+==================================================
+
+Begin by inspecting the development environment and any existing project files.
+
+Establish the application architecture and persistent data model.
+
+Identify the simplest functional implementation that satisfies the core batch-testing workflow.
+
+Implement that workflow first.
+
+Use mock providers to verify the execution engine before integrating paid APIs.
+
+Then build the review, recording, archive, visualization, and compatibility features.
+
+Run automated tests as functionality is completed.
+
+Keep the application runnable throughout development.
+
+Do not make unrelated changes to other projects.
+
+If a particular integration cannot be completed because credentials, documentation, or representative files are unavailable, implement a clean interface and continue with the independently testable parts.
+
+Provide a final implementation report identifying:
+
+- What was built.
+- What was tested.
+- Which tests passed.
+- Which features remain incomplete.
+- What external resources are needed.
+- How to launch and use the application.
+
+The intended result is a reliable, standalone experimentation workbench that makes large-scale LLM testing practical while preserving every generated response and every user-recorded observation.
+
+The application collects evidence.
+
+The user decides what that evidence means.
+
+Build accordingly.

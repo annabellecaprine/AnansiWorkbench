@@ -1,0 +1,5 @@
+node_modules/
+*.json.backup
+anansi-forge-backup*.json
+.DS_Store
+Thumbs.db
