@@ -468,6 +468,14 @@
             setEl('stat-eta', formatDuration(remainingMs));
         }
         if (_startTime) setEl('stat-elapsed', formatDuration(Date.now() - _startTime));
+
+        // Automatic completion transition when all jobs are finished
+        if (stats.total > 0 && stats.pending === 0 && stats.in_progress === 0 && stats.uncertain === 0) {
+            updateControls('completed');
+            stopStatsPolling();
+            setEl('stat-eta', 'Done');
+            renderRunHistory();
+        }
     }
 
     function setEl(id, val) { const el = document.getElementById(id); if (el) el.textContent = val; }
@@ -493,10 +501,12 @@
 
     function onBatchComplete(msg) {
         stopStatsPolling();
-        updateControls('idle');
+        updateControls('completed');
+        setEl('stat-eta', 'Done');
         appendLog('✅ Batch complete!', 'log-success');
         showToast('Batch complete! All jobs finished.', 'success');
         WorkbenchBus.emit('batch:complete', { runId: msg.runId });
+        renderRunHistory();
     }
 
     function appendLog(msg, cls = '') {
@@ -538,16 +548,30 @@
     // ─── Control state ────────────────────────────────────────────────────────────
 
     function updateControls(mode) {
-        // mode: 'idle' | 'running' | 'pausing' | 'paused'
+        // mode: 'idle' | 'running' | 'pausing' | 'paused' | 'completed'
         const set = (id, vis) => { const el = document.getElementById(id); if (el) el.style.display = vis ? '' : 'none'; };
         set('btn-exec-pause', mode === 'running');
         set('btn-exec-resume', mode === 'paused');
         set('btn-exec-cancel', mode === 'running' || mode === 'paused');
-        set('btn-exec-retry', mode === 'idle' || mode === 'paused');
+        set('btn-exec-retry', mode === 'idle' || mode === 'paused' || mode === 'completed');
         const statusEl = document.getElementById('exec-status-badge');
         if (statusEl) {
-            statusEl.textContent = mode === 'running' ? '● Running' : mode === 'paused' ? '⏸ Paused' : mode === 'pausing' ? '⏳ Pausing…' : '○ Idle';
-            statusEl.className = `status-badge ${mode === 'running' ? 'badge-green' : mode === 'paused' ? 'badge-yellow' : 'badge-gray'}`;
+            if (mode === 'running') {
+                statusEl.textContent = '● Running';
+                statusEl.className = 'status-badge badge-green';
+            } else if (mode === 'paused') {
+                statusEl.textContent = '⏸ Paused';
+                statusEl.className = 'status-badge badge-yellow';
+            } else if (mode === 'pausing') {
+                statusEl.textContent = '⏳ Pausing…';
+                statusEl.className = 'status-badge badge-yellow';
+            } else if (mode === 'completed') {
+                statusEl.textContent = '✓ Completed';
+                statusEl.className = 'status-badge badge-teal';
+            } else {
+                statusEl.textContent = '○ Idle';
+                statusEl.className = 'status-badge badge-gray';
+            }
         }
     }
 
