@@ -38,6 +38,8 @@
         }
     }
 
+    let _inlinePaused = false;
+
     function setupInlineExecutionEngine() {
         const listeners = [];
         _worker = {
@@ -64,10 +66,15 @@
                     sendToUI('PONG');
                     break;
                 case 'START':
+                    _inlinePaused = false;
+                    await runInlineBatch(msg.runId, sendToUI);
+                    break;
                 case 'RESUME':
+                    _inlinePaused = false;
                     await runInlineBatch(msg.runId, sendToUI);
                     break;
                 case 'PAUSE':
+                    _inlinePaused = true;
                     sendToUI('BATCH_PAUSED');
                     break;
                 default:
@@ -80,47 +87,151 @@
 
     async function runInlineBatch(runId, sendToUI) {
         try {
+            const run = await WorkbenchDB.getRun(runId);
+            const snapshot = run?.snapshot || {};
             const jobs = await WorkbenchDB.getPendingJobsForRun(runId);
             const totalStats = await WorkbenchDB.getJobStats(runId);
             sendToUI('STATUS', { stats: totalStats, runId });
 
             for (const job of jobs) {
+                if (_inlinePaused) {
+                    sendToUI('BATCH_PAUSED');
+                    return;
+                }
+
                 sendToUI('JOB_STARTED', { jobId: job.id });
+                await WorkbenchDB.saveJob({ ...job, status: 'in_progress', startedAt: new Date().toISOString() });
 
                 const model = await WorkbenchDB.getModel(job.modelId);
-                const mockText = `[Mock Response] Iteration ${job.iteration} complete for subtest "${job.subtestId}".`;
+                if (!model) {
+                    await WorkbenchDB.saveJob({ ...job, status: 'failed', lastError: 'Model not found' });
+                    sendToUI('JOB_FAILED', { jobId: job.id, error: 'Model not found' });
+                    continue;
+                }
 
-                const resp = await WorkbenchDB.saveResponse({
-                    id: WorkbenchDB.generateId(),
-                    jobId: job.id,
-                    runId: job.runId,
-                    subtestId: job.subtestId,
-                    modelId: job.modelId,
-                    iteration: job.iteration,
-                    text: mockText,
-                    promptSent: [{ role: 'user', content: 'Test prompt' }],
-                    modelUsed: model?.modelIdentifier || 'mock-model',
-                    tokensIn: 25,
-                    tokensOut: 40,
-                    latencyMs: 350,
-                    reviewFlag: false,
-                    createdAt: new Date().toISOString(),
-                });
+                // Construct prompt messages
+                const personality = job.effectivePersonality || snapshot.personality || '';
+                const scenario = job.effectiveScenario || snapshot.scenario || '';
+                const initialMessage = job.effectiveInitialMessage || snapshot.initialMessage || '';
+                const userResponse = job.userResponse || '';
 
-                await WorkbenchDB.saveJob({
-                    ...job,
-                    status: 'completed',
-                    completedAt: new Date().toISOString()
-                });
+                const messages = [];
+                let systemContent = '';
+                if (personality) systemContent += personality;
+                if (personality && scenario) systemContent += '\n\n';
+                if (scenario) systemContent += scenario;
 
-                sendToUI('JOB_COMPLETE', { jobId: job.id, responseId: resp.id });
+                if (systemContent.trim()) {
+                    messages.push({ role: 'system', content: systemContent.trim() });
+                }
+                if (initialMessage.trim()) {
+                    messages.push({ role: 'assistant', content: initialMessage.trim() });
+                }
+                messages.push({ role: 'user', content: userResponse });
+
+                let resultText = '';
+                let modelUsed = model.modelIdentifier || model.name;
+                let tokensIn = null;
+                let tokensOut = null;
+                let latencyMs = 0;
+
+                const t0 = Date.now();
+
+                try {
+                    if (model.provider === 'mock') {
+                        // Mock provider for explicit testing
+                        const delay = model.mockDelay ?? 500;
+                        await new Promise(r => setTimeout(r, delay));
+                        resultText = `[Mock response to: "${userResponse.slice(0, 50)}..."]`;
+                        tokensIn = 25;
+                        tokensOut = 40;
+                        latencyMs = Date.now() - t0;
+                    } else {
+                        // Real LLM fetch call (Chutes AI, OpenAI Compatible, etc.)
+                        const defaultEp = model.provider === 'chutes' ? 'https://llm.chutes.ai/v1' : 'https://api.openai.com/v1';
+                        const url = WorkbenchUtils.buildChatCompletionsUrl(model.endpoint || defaultEp, defaultEp);
+
+                        const body = {
+                            model: model.modelIdentifier,
+                            messages,
+                            temperature: model.temperature ?? snapshot.defaultParams?.temperature ?? 0.9,
+                            max_tokens: model.maxTokens ?? snapshot.defaultParams?.max_tokens ?? 500,
+                            ...(model.extraParams || {}),
+                        };
+
+                        const headers = { 'Content-Type': 'application/json' };
+                        if (model.apiKey) {
+                            headers['Authorization'] = `Bearer ${model.apiKey}`;
+                        }
+
+                        const response = await fetch(url, {
+                            method: 'POST',
+                            headers,
+                            body: JSON.stringify(body),
+                        });
+
+                        if (!response.ok) {
+                            const errText = await response.text().catch(() => '');
+                            throw new Error(`HTTP ${response.status}: ${errText.slice(0, 200)}`);
+                        }
+
+                        const data = await response.json();
+                        latencyMs = Date.now() - t0;
+                        const choice = data.choices?.[0];
+                        resultText = choice?.message?.content || '';
+                        modelUsed = data.model || model.modelIdentifier;
+                        tokensIn = data.usage?.prompt_tokens ?? null;
+                        tokensOut = data.usage?.completion_tokens ?? null;
+                    }
+
+                    const resp = await WorkbenchDB.saveResponse({
+                        id: WorkbenchDB.generateId(),
+                        jobId: job.id,
+                        runId: job.runId,
+                        subtestId: job.subtestId,
+                        modelId: job.modelId,
+                        iteration: job.iteration,
+                        text: resultText,
+                        promptSent: messages,
+                        modelUsed,
+                        tokensIn,
+                        tokensOut,
+                        latencyMs,
+                        reviewFlag: false,
+                        createdAt: new Date().toISOString(),
+                    });
+
+                    await WorkbenchDB.saveJob({
+                        ...job,
+                        status: 'completed',
+                        completedAt: new Date().toISOString()
+                    });
+
+                    sendToUI('JOB_COMPLETE', { jobId: job.id, responseId: resp.id });
+
+                } catch (jobErr) {
+                    console.error('[Execution Inline] Job execution error:', jobErr);
+                    await WorkbenchDB.saveJob({
+                        ...job,
+                        status: 'failed',
+                        lastError: String(jobErr.message || jobErr)
+                    });
+                    sendToUI('JOB_FAILED', { jobId: job.id, error: String(jobErr.message || jobErr) });
+                }
+
                 const currentStats = await WorkbenchDB.getJobStats(runId);
                 sendToUI('STATUS', { stats: currentStats, runId });
+
+                // Respect model request interval if defined
+                const minInterval = model.requestInterval || snapshot.throttle?.minInterval || 500;
+                if (minInterval > 0) {
+                    await new Promise(r => setTimeout(r, minInterval));
+                }
             }
 
-            const run = await WorkbenchDB.getRun(runId);
-            if (run) {
-                await WorkbenchDB.saveRun({ ...run, status: 'completed', completedAt: new Date().toISOString() });
+            const runEnd = await WorkbenchDB.getRun(runId);
+            if (runEnd) {
+                await WorkbenchDB.saveRun({ ...runEnd, status: 'completed', completedAt: new Date().toISOString() });
             }
 
             sendToUI('BATCH_COMPLETE', { runId });

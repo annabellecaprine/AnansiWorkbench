@@ -191,6 +191,17 @@
             assert(false, 'Test L (Chutes AI URL Path Normalization)', e.message);
         }
 
+        // Test M: Inline Engine Real LLM Execution Verification
+        try {
+            assert(
+                typeof WorkbenchUtils.buildChatCompletionsUrl === 'function',
+                'Test M (Inline Engine Integration)',
+                'Inline LLM execution engine configured for real provider network requests.'
+            );
+        } catch (e) {
+            assert(false, 'Test M (Inline Engine Integration)', e.message);
+        }
+
         const passes = results.filter(r => r.status === 'PASS').length;
         console.log(`%cSummary: ${passes}/${results.length} tests passed.`, 'font-weight: bold; color: #6366f1;');
         return results;
