@@ -45,6 +45,61 @@
         <!-- ████ MAIN CONTENT ████ -->
         <main id="main">
 
+            <!-- Persistent Execution HUD (Left Dock) -->
+            <aside id="exec-hud-sidebar" class="exec-hud-sidebar collapsed" style="display: none;">
+                <div class="hud-header" onclick="WorkbenchExecution.toggleHudExpand(event)">
+                    <div class="hud-title-wrap">
+                        <span class="hud-status-dot" id="hud-status-dot"></span>
+                        <span class="hud-title" id="hud-title">Run Execution</span>
+                    </div>
+                    <div class="hud-actions">
+                        <button class="hud-toggle-btn" id="hud-toggle-btn" title="Toggle HUD Mini View">+</button>
+                    </div>
+                </div>
+
+                <div class="hud-body" id="hud-body">
+                    <div class="hud-run-name" id="hud-run-name">No active run</div>
+
+                    <div class="hud-progress-wrap">
+                        <div class="hud-progress-bar" id="hud-progress-bar" style="width: 0%"></div>
+                    </div>
+                    <div class="hud-progress-meta">
+                        <span id="hud-pct">0%</span>
+                        <span id="hud-counts">0 / 0 completed</span>
+                    </div>
+
+                    <div class="hud-stats-grid">
+                        <div class="hud-stat-item">
+                            <span class="hud-stat-val text-teal" id="hud-completed">0</span>
+                            <span class="hud-stat-lbl">Completed</span>
+                        </div>
+                        <div class="hud-stat-item">
+                            <span class="hud-stat-val text-green" id="hud-active">0</span>
+                            <span class="hud-stat-lbl">Active</span>
+                        </div>
+                        <div class="hud-stat-item">
+                            <span class="hud-stat-val text-red" id="hud-failed">0</span>
+                            <span class="hud-stat-lbl">Failed</span>
+                        </div>
+                    </div>
+
+                    <div class="hud-timing-row">
+                        <span>⏱ <span id="hud-elapsed">0s</span></span>
+                        <span>⏳ ETA: <span id="hud-eta">--</span></span>
+                    </div>
+
+                    <div class="hud-controls">
+                        <button class="btn btn-xs btn-danger" id="hud-btn-cancel" style="display:none"
+                            onclick="WorkbenchExecution.cancel()">■ Cancel</button>
+                        <button class="btn btn-xs" id="hud-btn-pause" style="display:none"
+                            onclick="WorkbenchExecution.pause()">⏸ Pause</button>
+                        <button class="btn btn-xs btn-primary" id="hud-btn-resume" style="display:none"
+                            onclick="WorkbenchExecution.resume()">▶ Resume</button>
+                        <button class="btn btn-xs" onclick="WorkbenchApp.activateTab('execution')">Open Tab ↗</button>
+                    </div>
+                </div>
+            </aside>
+
             <!-- ══════════════════════════════════════════════
          EXPERIMENTS TAB
     ══════════════════════════════════════════════ -->

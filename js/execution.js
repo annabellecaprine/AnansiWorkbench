@@ -534,15 +534,93 @@
         if (_statsInterval) { clearInterval(_statsInterval); _statsInterval = null; }
     }
 
+    // ─── HUD Sidebar State ────────────────────────────────────────────────────────
+
+    let _currentRunTitle = '';
+    let _lastHudMode = 'idle';
+
+    function toggleHudExpand(evt) {
+        if (evt && evt.target && evt.target.closest && evt.target.closest('.btn-xs')) return;
+        const hud = document.getElementById('exec-hud-sidebar');
+        const btn = document.getElementById('hud-toggle-btn');
+        if (!hud) return;
+
+        const isCollapsed = hud.classList.toggle('collapsed');
+        if (btn) btn.textContent = isCollapsed ? '+' : '–';
+        localStorage.setItem('workbench_hud_collapsed', isCollapsed ? 'true' : 'false');
+    }
+
+    function updateHud(stats, mode) {
+        const hud = document.getElementById('exec-hud-sidebar');
+        if (!hud) return;
+
+        if (mode) _lastHudMode = mode;
+        const currentMode = mode || _lastHudMode;
+
+        // Show HUD if there is a run ID or active execution
+        if (_currentRunId || currentMode === 'running' || currentMode === 'paused' || currentMode === 'completed') {
+            hud.style.display = '';
+        }
+
+        // Run Title
+        setEl('hud-run-name', _currentRunTitle || 'Execution Run');
+
+        // Status Dot
+        const dot = document.getElementById('hud-status-dot');
+        if (dot) {
+            dot.className = 'hud-status-dot ' + (
+                currentMode === 'running' ? 'active' :
+                    currentMode === 'paused' || currentMode === 'pausing' ? 'paused' :
+                        currentMode === 'completed' ? 'completed' : ''
+            );
+        }
+
+        if (stats) {
+            const completedPct = stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0;
+            const bar = document.getElementById('hud-progress-bar');
+            if (bar) bar.style.width = completedPct + '%';
+
+            setEl('hud-pct', completedPct + '%');
+            setEl('hud-counts', `${stats.completed} / ${stats.total} completed`);
+            setEl('hud-completed', stats.completed);
+            setEl('hud-active', stats.in_progress);
+            setEl('hud-failed', stats.failed);
+
+            if (_startTime && stats.completed > 0 && stats.pending > 0) {
+                const elapsed = Date.now() - _startTime;
+                const rate = stats.completed / elapsed;
+                const remainingMs = stats.pending / rate;
+                setEl('hud-eta', formatDuration(remainingMs));
+            } else if (currentMode === 'completed') {
+                setEl('hud-eta', 'Done');
+            } else {
+                setEl('hud-eta', '--');
+            }
+        }
+
+        if (_startTime) {
+            setEl('hud-elapsed', formatDuration(Date.now() - _startTime));
+        }
+
+        // Controls visibility
+        const setVis = (id, vis) => { const el = document.getElementById(id); if (el) el.style.display = vis ? '' : 'none'; };
+        setVis('hud-btn-cancel', currentMode === 'running' || currentMode === 'paused');
+        setVis('hud-btn-pause', currentMode === 'running');
+        setVis('hud-btn-resume', currentMode === 'paused');
+    }
+
     // ─── Run info panel ───────────────────────────────────────────────────────────
 
     function renderRunInfo(exp, run, jobCount) {
+        _currentRunTitle = exp ? exp.title : `Run ${run.id.slice(0, 8)}`;
         const titleEl = document.getElementById('exec-run-title');
         const metaEl = document.getElementById('exec-run-meta');
         if (titleEl) titleEl.textContent = exp ? `${exp.title} — Run` : `Run ${run.id.slice(0, 8)}`;
         if (metaEl) metaEl.textContent = `${plural(jobCount, 'job')} · Started ${formatDateTime(new Date().toISOString())}`;
         const uncertain = document.getElementById('uncertain-panel');
         if (uncertain) uncertain.style.display = 'none';
+
+        updateHud(null, 'running');
     }
 
     // ─── Control state ────────────────────────────────────────────────────────────
@@ -573,6 +651,8 @@
                 statusEl.className = 'status-badge badge-gray';
             }
         }
+
+        updateHud(null, mode);
     }
 
     // ─── Load run history ─────────────────────────────────────────────────────────
@@ -626,6 +706,19 @@
         document.getElementById('btn-exec-cancel')?.addEventListener('click', cancel);
         document.getElementById('btn-exec-retry')?.addEventListener('click', retryFailed);
 
+        const savedCollapsed = localStorage.getItem('workbench_hud_collapsed');
+        const hud = document.getElementById('exec-hud-sidebar');
+        const btn = document.getElementById('hud-toggle-btn');
+        if (hud && savedCollapsed !== null) {
+            if (savedCollapsed === 'false') {
+                hud.classList.remove('collapsed');
+                if (btn) btn.textContent = '–';
+            } else {
+                hud.classList.add('collapsed');
+                if (btn) btn.textContent = '+';
+            }
+        }
+
         updateControls('idle');
 
         WorkbenchBus.on('run:start', async ({ experimentId }) => {
@@ -635,5 +728,98 @@
         WorkbenchApp.registerTab('execution', renderRunHistory);
     }
 
-    window.WorkbenchExecution = { init, startRun, resumeRun, reviewRun, pause, resume, cancel, retryFailed };
+    // ─── Stats & Progress ─────────────────────────────────────────────────────────
+
+    function updateStats(stats) {
+        if (!stats) return;
+        const completedPct = stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0;
+
+        setEl('stat-total', stats.total);
+        setEl('stat-completed', stats.completed);
+        setEl('stat-pending', stats.pending);
+        setEl('stat-active', stats.in_progress);
+        setEl('stat-failed', stats.failed);
+        setEl('stat-pct', completedPct + '%');
+
+        const bar = document.getElementById('exec-progress-bar');
+        if (bar) bar.style.width = completedPct + '%';
+
+        // ETA
+        if (_startTime && stats.completed > 0 && stats.pending > 0) {
+            const elapsed = Date.now() - _startTime;
+            const rate = stats.completed / elapsed;
+            const remainingMs = stats.pending / rate;
+            setEl('stat-eta', formatDuration(remainingMs));
+        }
+        if (_startTime) setEl('stat-elapsed', formatDuration(Date.now() - _startTime));
+
+        updateHud(stats);
+
+        // Automatic completion transition when all jobs are finished
+        if (stats.total > 0 && stats.pending === 0 && stats.in_progress === 0 && stats.uncertain === 0) {
+            updateControls('completed');
+            stopStatsPolling();
+            setEl('stat-eta', 'Done');
+            renderRunHistory();
+        }
+    }
+
+    function setEl(id, val) { const el = document.getElementById(id); if (el) el.textContent = val; }
+
+    function onJobStarted(msg) {
+        appendLog(`▶ Job ${msg.jobId.slice(0, 8)}… started`);
+    }
+
+    function onJobComplete(msg) {
+        appendLog(`✓ Job ${msg.jobId.slice(0, 8)}… complete`);
+        WorkbenchBus.emit('response:saved', { responseId: msg.responseId });
+    }
+
+    function onJobFailed(msg) {
+        appendLog(`✗ Job ${msg.jobId.slice(0, 8)}… failed: ${msg.error}`, 'log-error');
+    }
+
+    function onBatchPaused() {
+        stopStatsPolling();
+        updateControls('paused');
+        showToast('Batch paused. Active requests have completed.', 'info');
+    }
+
+    function onBatchComplete(msg) {
+        stopStatsPolling();
+        updateControls('completed');
+        setEl('stat-eta', 'Done');
+        appendLog('✅ Batch complete!', 'log-success');
+        showToast('Batch complete! All jobs finished.', 'success');
+        WorkbenchBus.emit('batch:complete', { runId: msg.runId });
+        renderRunHistory();
+    }
+
+    function appendLog(msg, cls = '') {
+        const log = document.getElementById('exec-log');
+        if (!log) return;
+        const entry = document.createElement('div');
+        entry.className = 'log-entry ' + cls;
+        entry.textContent = new Date().toLocaleTimeString() + ' — ' + msg;
+        log.appendChild(entry);
+        log.scrollTop = log.scrollHeight;
+    }
+
+    // ─── Stats polling ────────────────────────────────────────────────────────────
+
+    function startStatsPolling() {
+        stopStatsPolling();
+        _statsInterval = setInterval(async () => {
+            if (!_currentRunId) return;
+            const stats = await WorkbenchDB.getJobStats(_currentRunId);
+            updateStats(stats);
+        }, 2000);
+    }
+
+    function stopStatsPolling() {
+        if (_statsInterval) { clearInterval(_statsInterval); _statsInterval = null; }
+    }
+
+    window.WorkbenchExecution = { init, startRun, resumeRun, reviewRun, pause, resume, cancel, retryFailed, toggleHudExpand };
 })();
+
