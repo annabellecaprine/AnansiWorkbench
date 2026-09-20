@@ -17,7 +17,7 @@
     'use strict';
 
     const DB_NAME = 'anansi-workbench';
-    const DB_VERSION = 1;
+    const DB_VERSION = 2;
 
     let dbInstance = null;
 
@@ -139,6 +139,7 @@
 
     async function getAll(storeName, indexName, indexValue) {
         const db = dbInstance || await initDB();
+        if (!db.objectStoreNames.contains(storeName)) return [];
         const tx = db.transaction(storeName, 'readonly');
         const store = tx.objectStore(storeName);
         if (indexName && indexValue !== undefined) {
@@ -150,12 +151,14 @@
 
     async function getOne(storeName, key) {
         const db = dbInstance || await initDB();
+        if (!db.objectStoreNames.contains(storeName)) return null;
         const tx = db.transaction(storeName, 'readonly');
         return promisify(tx.objectStore(storeName).get(key));
     }
 
     async function putOne(storeName, record) {
         const db = dbInstance || await initDB();
+        if (!db.objectStoreNames.contains(storeName)) return record;
         const tx = db.transaction(storeName, 'readwrite');
         await promisify(tx.objectStore(storeName).put(record));
         return record;
@@ -163,6 +166,7 @@
 
     async function deleteOne(storeName, key) {
         const db = dbInstance || await initDB();
+        if (!db.objectStoreNames.contains(storeName)) return;
         const tx = db.transaction(storeName, 'readwrite');
         return promisify(tx.objectStore(storeName).delete(key));
     }
