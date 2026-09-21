@@ -184,7 +184,7 @@
     });
 
     const labels = Object.keys(modelStats);
-    const data = labels.map(l => modelStats[l].count ? (modelStats[l].sum / modelStats[l].count) : 0);
+    const data = labels.map(l => modelStats[l].count ? parseFloat((modelStats[l].sum / modelStats[l].count).toFixed(2)) : 0);
     const modelIds = labels.map(l => modelStats[l].modelId);
 
     const regions = drawBarChart(ctx, canvas.width, canvas.height, labels, data, '#6366f1', 's');
@@ -211,7 +211,7 @@
     const data = labels.map(l => modelStats[l].count ? Math.round(modelStats[l].sum / modelStats[l].count) : 0);
     const modelIds = labels.map(l => modelStats[l].modelId);
 
-    const regions = drawBarChart(ctx, canvas.width, canvas.height, labels, data, '#10b981', 'tok');
+    const regions = drawBarChart(ctx, canvas.width, canvas.height, labels, data, '#10b981', '');
     _hitRegions.set('chart-canvas-tokens', regions.map((r, i) => ({ ...r, modelId: modelIds[i], label: labels[i] })));
     attachClickHandler(canvas, 'chart-canvas-tokens', mostRecentRun);
   }
