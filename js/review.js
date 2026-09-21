@@ -303,5 +303,34 @@
     WorkbenchApp.registerTab('review', load);
   }
 
-  window.WorkbenchReview = { init, load, loadRun, goTo, prev, next, saveAndNext, toggleFlag, togglePrompt, setFilter, toggleCompareMode };
+  /**
+   * Called by WorkbenchCharts when a bar is clicked.
+   * Loads the given run and pre-filters responses to the specified modelId.
+   */
+  async function drilldown(runId, modelId, label) {
+    _runId = runId;
+    WorkbenchState.selectedRunId = runId;
+    _responses = await WorkbenchDB.getResponsesForRun(runId);
+    _responses.sort((a, b) => {
+      if (a.subtestId !== b.subtestId) return (a.subtestId || '').localeCompare(b.subtestId || '');
+      if (a.iteration !== b.iteration) return (a.iteration || 0) - (b.iteration || 0);
+      return (a.modelId || '').localeCompare(b.modelId || '');
+    });
+
+    if (modelId) {
+      // Apply a temporary model filter by reducing visible responses
+      const filtered = _responses.filter(r => r.modelId === modelId);
+      if (filtered.length > 0) {
+        // Show a notice in the log area
+        showToast(`Showing ${filtered.length} response${filtered.length !== 1 ? 's' : ''} for model: ${label || modelId}`, 'info');
+      }
+      _responses = filtered.length > 0 ? filtered : _responses;
+    }
+
+    renderNav();
+    if (_responses.length > 0) await renderResponse(0);
+    else renderEmpty('No responses found for this filter.');
+  }
+
+  window.WorkbenchReview = { init, load, loadRun, drilldown, goTo, prev, next, saveAndNext, toggleFlag, togglePrompt, setFilter, toggleCompareMode };
 })();

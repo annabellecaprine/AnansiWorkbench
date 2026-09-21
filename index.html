@@ -88,6 +88,18 @@
                         <span>⏳ ETA: <span id="hud-eta">--</span></span>
                     </div>
 
+                    <!-- Active job context -->
+                    <div class="hud-job-context" id="hud-job-context" style="display:none">
+                        <span class="job-context-icon">⚡</span>
+                        <span id="hud-job-context-label">—</span>
+                    </div>
+
+                    <!-- Token totals row -->
+                    <div class="hud-token-row" id="hud-token-row" style="display:none">
+                        <span>🪩 <span id="hud-tokens-in">—</span> in</span>
+                        <span>📜 <span id="hud-tokens-out">—</span> out</span>
+                    </div>
+
                     <div class="hud-controls">
                         <button class="btn btn-xs btn-danger" id="hud-btn-cancel" style="display:none"
                             onclick="WorkbenchExecution.cancel()">■ Cancel</button>

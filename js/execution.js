@@ -544,23 +544,38 @@
     function setEl(id, val) { const el = document.getElementById(id); if (el) el.textContent = val; }
 
     function onJobContext(msg) {
+        const label = `${msg.subtest}  ·  ${msg.model}  ·  Iteration ${msg.iteration}`;
+
+        // Main execution tab strip
         const ctx = document.getElementById('exec-job-context');
         const lbl = document.getElementById('exec-job-context-label');
-        if (!ctx || !lbl) return;
-        ctx.style.display = '';
-        lbl.textContent = `${msg.subtest}  ·  ${msg.model}  ·  Iteration ${msg.iteration}`;
+        if (ctx && lbl) { ctx.style.display = ''; lbl.textContent = label; }
+
+        // HUD sidebar
+        const hudCtx = document.getElementById('hud-job-context');
+        const hudLbl = document.getElementById('hud-job-context-label');
+        if (hudCtx && hudLbl) { hudCtx.style.display = ''; hudLbl.textContent = label; }
     }
 
     function updateTokenTotals(tokensIn, tokensOut) {
-        const row = document.getElementById('stat-tokens-row');
-        if (!row) return;
         const ti = tokensIn ?? 0;
         const to = tokensOut ?? 0;
         if (ti > 0 || to > 0) {
-            row.style.display = '';
-            setEl('stat-tokens-in', ti.toLocaleString());
-            setEl('stat-tokens-out', to.toLocaleString());
-            setEl('stat-tokens-total', (ti + to).toLocaleString());
+            // Main execution tab
+            const row = document.getElementById('stat-tokens-row');
+            if (row) {
+                row.style.display = '';
+                setEl('stat-tokens-in', ti.toLocaleString());
+                setEl('stat-tokens-out', to.toLocaleString());
+                setEl('stat-tokens-total', (ti + to).toLocaleString());
+            }
+            // HUD sidebar
+            const hudRow = document.getElementById('hud-token-row');
+            if (hudRow) {
+                hudRow.style.display = '';
+                setEl('hud-tokens-in', ti.toLocaleString());
+                setEl('hud-tokens-out', to.toLocaleString());
+            }
         }
     }
 
@@ -600,6 +615,8 @@
         // Hide active job context label
         const ctx = document.getElementById('exec-job-context');
         if (ctx) ctx.style.display = 'none';
+        const hudCtx = document.getElementById('hud-job-context');
+        if (hudCtx) hudCtx.style.display = 'none';
     }
 
     function appendLog(msg, cls = '') {
