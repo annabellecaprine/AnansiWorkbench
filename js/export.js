@@ -138,16 +138,78 @@
             const reader = new FileReader();
             reader.onload = async (evt) => {
                 try {
-                    const data = JSON.parse(evt.target.result);
+                    let jsonStr = evt.target.result;
+                    let data = JSON.parse(jsonStr);
                     if (data._app !== 'anansi-workbench') {
                         showToast('Invalid backup file. App signature does not match.', 'error');
                         return;
                     }
 
-                    const ok = await showConfirm(`Restore backup from ${data._exportedAt}? Existing records with matching IDs will be overwritten.`, 'Restore Backup');
-                    if (!ok) return;
+                    // Check for conflicts
+                    const conflicts = [];
+                    for (const exp of (data.experiments || [])) {
+                        if (await WorkbenchDB.getOne('experiments', exp.id)) conflicts.push({ type: 'Experiment', id: exp.id, title: exp.title || exp.name });
+                    }
+                    for (const mod of (data.models || [])) {
+                        if (await WorkbenchDB.getOne('models', mod.id)) conflicts.push({ type: 'Model', id: mod.id, title: mod.name || mod.modelIdentifier });
+                    }
 
-                    // Import all stores
+                    let resolution = 'overwrite';
+
+                    if (conflicts.length > 0) {
+                        resolution = await new Promise(resolve => {
+                            const list = document.getElementById('conflict-list');
+                            if (list) list.innerHTML = conflicts.map(c => `<div><strong style="color:var(--text-primary)">${c.type}:</strong> ${escapeHtml(c.title)} <span style="color:var(--text-muted);font-size:10px;">(${c.id})</span></div>`).join('');
+
+                            openModal('modal-import-conflict');
+
+                            const cleanup = () => {
+                                document.getElementById('btn-conflict-skip').onclick = null;
+                                document.getElementById('btn-conflict-overwrite').onclick = null;
+                                document.getElementById('btn-conflict-duplicate').onclick = null;
+                                closeModal('modal-import-conflict');
+                            };
+
+                            document.getElementById('btn-conflict-skip').onclick = () => { cleanup(); resolve('skip'); };
+                            document.getElementById('btn-conflict-overwrite').onclick = () => { cleanup(); resolve('overwrite'); };
+                            document.getElementById('btn-conflict-duplicate').onclick = () => { cleanup(); resolve('duplicate'); };
+                        });
+                    } else {
+                        const ok = await showConfirm(`Restore backup from ${WorkbenchUtils.formatDate(data._exportedAt)}?`, 'Restore Backup');
+                        if (!ok) return;
+                    }
+
+                    if (resolution === 'skip') {
+                        // Remove conflicts from import package completely
+                        const conflictIds = new Set(conflicts.map(c => c.id));
+                        data.experiments = (data.experiments || []).filter(e => !conflictIds.has(e.id));
+                        data.models = (data.models || []).filter(m => !conflictIds.has(m.id));
+
+                        // Cascade filter for dependent runs (which trickles down to jobs/responses based on the same assumption that runs drive jobs)
+                        data.runs = (data.runs || []).filter(r => !conflictIds.has(r.experimentId));
+                        const validRunIds = new Set((data.runs || []).map(r => r.id));
+                        data.jobs = (data.jobs || []).filter(j => validRunIds.has(j.runId));
+                        data.responses = (data.responses || []).filter(r => validRunIds.has(r.runId));
+                        data.records = (data.records || []).filter(r => validRunIds.has(r.runId));
+                    } else if (resolution === 'duplicate') {
+                        // Remap IDs via regex replacing the entire JSON string to be completely foolproof
+                        for (const c of conflicts) {
+                            const newId = WorkbenchDB.generateId();
+                            const regex = new RegExp(`"${c.id}"`, 'g');
+                            jsonStr = jsonStr.replace(regex, `"${newId}"`);
+                        }
+                        data = JSON.parse(jsonStr);
+
+                        // Modify titles minimally just to indicate they were duped
+                        for (const exp of (data.experiments || [])) {
+                            if (conflicts.find(c => c.type === 'Experiment' && c.title === exp.title)) exp.title = `${exp.title} (Restored)`;
+                        }
+                        for (const mod of (data.models || [])) {
+                            if (conflicts.find(c => c.type === 'Model' && c.title === mod.name)) mod.name = `${mod.name} (Restored)`;
+                        }
+                    }
+
+                    // Import all stores logically
                     const stores = ['experiments', 'runs', 'jobs', 'responses', 'records', 'models', 'fieldSchemas', 'charts'];
                     for (const storeName of stores) {
                         const items = data[storeName] || [];

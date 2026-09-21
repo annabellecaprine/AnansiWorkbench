@@ -719,10 +719,15 @@
 
                 <div class="override-section">
                     <div class="override-header">
-                        <label class="checkbox-label">
-                            <input type="checkbox" id="st-override-personality"> Override Personality
-                        </label>
-                        <span class="override-badge">INHERITED</span>
+                        <label style="font-size:12px;font-weight:600;color:var(--text-primary);">Personality
+                            Mode</label>
+                        <div class="flex-row align-center gap-sm">
+                            <select id="st-mode-personality" class="prompt-mode-select" style="min-width:180px;">
+                                <option value="inherit">Inherit Default</option>
+                                <option value="append">Append to Default ➕</option>
+                                <option value="replace">Replace Default ⚡</option>
+                            </select>
+                        </div>
                     </div>
                     <div id="st-panel-personality" class="override-panel" style="display:none">
                         <div class="prompt-field-label">Personality</div>
@@ -732,10 +737,14 @@
 
                 <div class="override-section">
                     <div class="override-header">
-                        <label class="checkbox-label">
-                            <input type="checkbox" id="st-override-scenario"> Override Scenario
-                        </label>
-                        <span class="override-badge">INHERITED</span>
+                        <label style="font-size:12px;font-weight:600;color:var(--text-primary);">Scenario Mode</label>
+                        <div class="flex-row align-center gap-sm">
+                            <select id="st-mode-scenario" class="prompt-mode-select" style="min-width:180px;">
+                                <option value="inherit">Inherit Default</option>
+                                <option value="append">Append to Default ➕</option>
+                                <option value="replace">Replace Default ⚡</option>
+                            </select>
+                        </div>
                     </div>
                     <div id="st-panel-scenario" class="override-panel" style="display:none">
                         <div class="prompt-field-label">Scenario</div>
@@ -745,10 +754,15 @@
 
                 <div class="override-section">
                     <div class="override-header">
-                        <label class="checkbox-label">
-                            <input type="checkbox" id="st-override-initial"> Override Initial Message
-                        </label>
-                        <span class="override-badge">INHERITED</span>
+                        <label style="font-size:12px;font-weight:600;color:var(--text-primary);">Initial Message
+                            Mode</label>
+                        <div class="flex-row align-center gap-sm">
+                            <select id="st-mode-initial" class="prompt-mode-select" style="min-width:180px;">
+                                <option value="inherit">Inherit Default</option>
+                                <option value="append">Append to Default ➕</option>
+                                <option value="replace">Replace Default ⚡</option>
+                            </select>
+                        </div>
                     </div>
                     <div id="st-panel-initial" class="override-panel" style="display:none">
                         <div class="prompt-field-label">Initial Message</div>
@@ -829,6 +843,31 @@
             <div class="modal-footer">
                 <button class="btn" onclick="closeModal('modal-field-schema')">Cancel</button>
                 <button class="btn btn-primary" id="field-form-save">Save Field</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── JSON Import Conflict Modal ───────────────────────── -->
+    <div class="modal" id="modal-import-conflict" role="dialog" aria-modal="true"
+        aria-labelledby="conflict-modal-title">
+        <div class="modal-box" style="max-width:540px;">
+            <div class="modal-header">
+                <span class="modal-title" id="conflict-modal-title">⚠️ Backup Restore Conflicts</span>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom:12px; font-size:13px; color:var(--text-secondary);">
+                    The backup file contains records that already exist in your local Workbench database.
+                    How would you like to handle these conflicts?
+                </p>
+                <div id="conflict-list"
+                    style="max-height:200px; overflow-y:auto; background:var(--bg-panel); border:1px solid var(--border-color); border-radius:6px; padding:12px; font-size:12px; margin-bottom:16px;">
+                    <!-- Populated dynamically by export.js -->
+                </div>
+                <div class="flex-row justify-between gap-md">
+                    <button class="btn btn-secondary flex-1" id="btn-conflict-skip">Skip Existing</button>
+                    <button class="btn btn-danger flex-1" id="btn-conflict-overwrite">Overwrite All</button>
+                    <button class="btn btn-primary flex-1" id="btn-conflict-duplicate">Duplicate as New</button>
+                </div>
             </div>
         </div>
     </div>

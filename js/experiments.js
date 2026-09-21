@@ -324,15 +324,15 @@
         document.getElementById('st-form-tags').value = (st.tags || []).join(', ');
         document.getElementById('st-form-responses').value = (st.userResponses || []).join('\n');
 
-        // Override checkboxes
-        const ovPersonality = document.getElementById('st-override-personality');
-        const ovScenario = document.getElementById('st-override-scenario');
-        const ovInitialMsg = document.getElementById('st-override-initial');
+        // Prompt Modes
+        const modePersonality = document.getElementById('st-mode-personality');
+        const modeScenario = document.getElementById('st-mode-scenario');
+        const modeInitialMsg = document.getElementById('st-mode-initial');
         const ovReps = document.getElementById('st-override-reps');
 
-        ovPersonality.checked = st.personality != null;
-        ovScenario.checked = st.scenario != null;
-        ovInitialMsg.checked = st.initialMessage != null;
+        modePersonality.value = st.personalityMode || (st.personality != null ? 'replace' : 'inherit');
+        modeScenario.value = st.scenarioMode || (st.scenario != null ? 'replace' : 'inherit');
+        modeInitialMsg.value = st.initialMessageMode || (st.initialMessage != null ? 'replace' : 'inherit');
         ovReps.checked = st.repetitions != null;
 
         document.getElementById('st-form-personality').value = st.personality || '';
@@ -341,9 +341,9 @@
         document.getElementById('st-form-reps').value = st.repetitions || 5;
 
         // Toggle override panels
-        toggleOverridePanel('personality', ovPersonality.checked);
-        toggleOverridePanel('scenario', ovScenario.checked);
-        toggleOverridePanel('initial', ovInitialMsg.checked);
+        toggleOverridePanel('personality', modePersonality.value !== 'inherit');
+        toggleOverridePanel('scenario', modeScenario.value !== 'inherit');
+        toggleOverridePanel('initial', modeInitialMsg.value !== 'inherit');
         toggleOverridePanel('reps', ovReps.checked);
 
         openModal('modal-subtest');
@@ -360,9 +360,9 @@
 
         const tag = document.getElementById('st-form-tags').value;
 
-        const ovPersonality = document.getElementById('st-override-personality').checked;
-        const ovScenario = document.getElementById('st-override-scenario').checked;
-        const ovInitial = document.getElementById('st-override-initial').checked;
+        const modePersonality = document.getElementById('st-mode-personality').value;
+        const modeScenario = document.getElementById('st-mode-scenario').value;
+        const modeInitial = document.getElementById('st-mode-initial').value;
         const ovReps = document.getElementById('st-override-reps').checked;
 
         const responsesRaw = document.getElementById('st-form-responses').value;
@@ -379,9 +379,12 @@
             description: document.getElementById('st-form-desc').value.trim(),
             tags: tag.split(',').map(t => t.trim()).filter(Boolean),
             userResponses,
-            personality: ovPersonality ? document.getElementById('st-form-personality').value : null,
-            scenario: ovScenario ? document.getElementById('st-form-scenario').value : null,
-            initialMessage: ovInitial ? document.getElementById('st-form-initial-msg').value : null,
+            personalityMode: modePersonality,
+            scenarioMode: modeScenario,
+            initialMessageMode: modeInitial,
+            personality: modePersonality !== 'inherit' ? document.getElementById('st-form-personality').value : null,
+            scenario: modeScenario !== 'inherit' ? document.getElementById('st-form-scenario').value : null,
+            initialMessage: modeInitial !== 'inherit' ? document.getElementById('st-form-initial-msg').value : null,
             models: null,  // extended in Phase 2
             repetitions: ovReps ? (parseInt(document.getElementById('st-form-reps').value) || 5) : null,
             disabled: false,
@@ -624,11 +627,14 @@
         document.getElementById('btn-add-field-schema')?.addEventListener('click', addFieldSchema);
         document.getElementById('field-form-save')?.addEventListener('click', saveFieldSchemaFromForm);
 
-        // Override toggle handlers
-        ['personality', 'scenario', 'initial', 'reps'].forEach(key => {
-            document.getElementById(`st-override-${key}`)?.addEventListener('change', e => {
-                toggleOverridePanel(key, e.target.checked);
+        // Prompt Mode & Override toggle handlers
+        ['personality', 'scenario', 'initial'].forEach(key => {
+            document.getElementById(`st-mode-${key}`)?.addEventListener('change', e => {
+                toggleOverridePanel(key, e.target.value !== 'inherit');
             });
+        });
+        document.getElementById('st-override-reps')?.addEventListener('change', e => {
+            toggleOverridePanel('reps', e.target.checked);
         });
 
         WorkbenchBus.on('models:changed', () => { if (_editingId) load(); });
