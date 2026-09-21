@@ -105,6 +105,10 @@
             if (parentVal && subtestVal) return parentVal + '\n\n' + subtestVal;
             return subtestVal || parentVal;
         }
+        if (mode === 'prepend') {
+            if (parentVal && subtestVal) return subtestVal + '\n\n' + parentVal;
+            return subtestVal || parentVal;
+        }
         // 'inherit' or default
         return subtestVal || parentVal;
     }
