@@ -601,12 +601,24 @@
         showToast('Batch paused. Active requests have completed.', 'info');
     }
 
-    function onBatchComplete(msg) {
+    async function onBatchComplete(msg) {
         stopStatsPolling();
         updateControls('completed');
         setEl('stat-eta', 'Done');
         appendLog('✅ Batch complete!', 'log-success');
         showToast('Batch complete! All jobs finished.', 'success');
+
+        // Auto-progress experiment status (Item 11)
+        if (msg.runId && WorkbenchState.selectedExperimentId) {
+            try {
+                const exp = await WorkbenchDB.getExperiment(WorkbenchState.selectedExperimentId);
+                if (exp && (exp.status === 'Ready' || exp.status === 'Running' || exp.status === 'Draft')) {
+                    exp.status = 'In Review';
+                    await WorkbenchDB.saveExperiment(exp);
+                    WorkbenchBus.emit('experiments:changed');
+                }
+            } catch (err) { console.error('Failed to auto-progress experiment', err); }
+        }
         WorkbenchBus.emit('batch:complete', { runId: msg.runId });
         renderRunHistory();
         if (msg.tokensIn !== undefined || msg.tokensOut !== undefined) {

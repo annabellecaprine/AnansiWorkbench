@@ -213,6 +213,7 @@
             description: exp.description || '',
             category: exp.category || '',
             tags: Array.isArray(exp.tags) ? exp.tags : [],
+            notes: exp.notes || existing?.notes || '',
             version: exp.version || '1.0',
             status: EXPERIMENT_STATUSES.includes(exp.status) ? exp.status : 'Draft',
             // Prompt fields
@@ -279,6 +280,14 @@
     }
 
     async function deleteRun(id) {
+        const jobs = await getJobsForRun(id);
+        const responses = await getResponsesForRun(id);
+        const records = await getAll('records', 'runId', id);
+
+        await Promise.all(jobs.map(j => deleteOne('jobs', j.id)));
+        await Promise.all(responses.map(r => deleteOne('responses', r.id)));
+        await Promise.all(records.map(r => deleteOne('records', r.id)));
+
         return deleteOne('runs', id);
     }
 

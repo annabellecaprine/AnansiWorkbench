@@ -148,7 +148,10 @@
                         <span style="color:var(--text-muted); margin-left:8px;">${formatDateTime(run.startedAt || run.createdAt)}</span>
                         ${runResps.length > 0 ? `<span style="color:var(--text-muted); margin-left:8px;">· ${runResps.length} responses · ${runPct}% reviewed · ${runFlagged} flagged</span>` : ''}
                       </div>
-                      <button class="btn btn-sm" onclick="WorkbenchArchive.openRunInReview('${run.id}')">📋 Open in Review</button>
+                      <div class="flex-row gap-sm">
+                        <button class="btn btn-sm" onclick="WorkbenchArchive.openRunInReview('${run.id}')">📋 Open in Review</button>
+                        <button class="btn btn-sm btn-danger" onclick="WorkbenchArchive.confirmDeleteRun('${run.id}')">🗑</button>
+                      </div>
                     </div>`;
         }).join('')}
                 </div>
@@ -178,11 +181,23 @@
     WorkbenchApp.activateTab('review');
   }
 
+  async function confirmDeleteRun(runId) {
+    if (!confirm('Are you sure you want to delete this run? This will cascade delete all jobs, responses, and records associated with it. This cannot be undone.')) return;
+    try {
+      await WorkbenchDB.deleteRun(runId);
+      showToast('Run and all associated data deleted.', 'success');
+      await load();
+    } catch (e) {
+      console.error(e);
+      showToast('Error deleting run.', 'error');
+    }
+  }
+
   async function init() {
     WorkbenchApp.registerTab('archive', load);
   }
 
   window.WorkbenchArchive = {
-    init, load, onSearch, onFilterExp, openRunInReview
+    init, load, onSearch, onFilterExp, openRunInReview, confirmDeleteRun
   };
 })();

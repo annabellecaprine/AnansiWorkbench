@@ -84,6 +84,7 @@
         document.getElementById('exp-form-desc').value = exp?.description || '';
         document.getElementById('exp-form-category').value = exp?.category || '';
         document.getElementById('exp-form-tags').value = (exp?.tags || []).join(', ');
+        document.getElementById('exp-form-notes').value = exp?.notes || '';
         document.getElementById('exp-form-version').value = exp?.version || '1.0';
         document.getElementById('exp-form-status').value = exp?.status || 'Draft';
 
@@ -151,6 +152,7 @@
             description: document.getElementById('exp-form-desc').value.trim(),
             category: document.getElementById('exp-form-category').value.trim(),
             tags,
+            notes: document.getElementById('exp-form-notes').value,
             version: document.getElementById('exp-form-version').value.trim() || '1.0',
             status: document.getElementById('exp-form-status').value,
             personality: document.getElementById('exp-form-personality').value,
@@ -225,13 +227,21 @@
         let dragSrc = null;
 
         rows.forEach(row => {
-            row.addEventListener('dragstart', e => { dragSrc = row; row.classList.add('dragging'); });
+            row.addEventListener('dragstart', e => {
+                dragSrc = row;
+                row.classList.add('dragging');
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', row.dataset.idx);
+            });
             row.addEventListener('dragend', e => { row.classList.remove('dragging'); });
-            row.addEventListener('dragover', e => { e.preventDefault(); });
+            row.addEventListener('dragover', e => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+            });
             row.addEventListener('drop', async e => {
                 e.preventDefault();
                 if (dragSrc === row) return;
-                const srcIdx = parseInt(dragSrc.dataset.idx);
+                const srcIdx = parseInt(e.dataTransfer.getData('text/plain'));
                 const destIdx = parseInt(row.dataset.idx);
                 const exp = _editingId ? await WorkbenchDB.getExperiment(_editingId) : null;
                 if (!exp) return;

@@ -32,6 +32,7 @@
             <span class="model-provider-badge">${WorkbenchUtils.escapeHtml(PROVIDERS.find(p => p.id === m.provider)?.label || m.provider)}</span>
           </div>
           <div class="model-card-actions">
+            <button class="btn-icon" onclick="WorkbenchModels.toggleStats('${m.id}')" title="Usage Stats">📊</button>
             <button class="btn-icon" onclick="WorkbenchModels.testConnection('${m.id}')" title="Test connection">🔗</button>
             <button class="btn-icon" onclick="WorkbenchModels.openEdit('${m.id}')" title="Edit">✏️</button>
             <button class="btn-icon btn-danger" onclick="WorkbenchModels.deleteModel('${m.id}')" title="Delete">🗑</button>
@@ -42,7 +43,42 @@
           <span class="model-meta">Temp: ${m.temperature ?? '—'} · Max tokens: ${m.maxTokens ?? '—'} · Concurrency: ${m.concurrencyLimit ?? 1}</span>
         </div>
         <div class="model-status-bar" id="model-status-${m.id}"></div>
+        <div id="model-stats-${m.id}" class="model-stats-panel" style="display:none; padding:12px; background:var(--bg-elevated); font-size:12px; border-top:1px solid var(--border-subtle); color:var(--text-muted);">
+          Loading stats...
+        </div>
       </div>`).join('');
+    }
+
+    async function toggleStats(id) {
+        const el = document.getElementById(`model-stats-${id}`);
+        if (!el) return;
+        if (el.style.display !== 'none') {
+            el.style.display = 'none';
+            return;
+        }
+        el.style.display = 'block';
+        el.innerHTML = 'Loading stats...';
+
+        const responses = await WorkbenchDB.getAll('responses');
+        const mResps = responses.filter(r => r.modelId === id);
+
+        if (mResps.length === 0) {
+            el.innerHTML = 'No runs recorded for this model.';
+            return;
+        }
+
+        const successCount = mResps.filter(r => r.text && !r.error).length;
+        const validLatencies = mResps.filter(r => typeof r.latencyMs === 'number').map(r => r.latencyMs);
+        const avgLat = validLatencies.length ? (validLatencies.reduce((a, b) => a + b, 0) / validLatencies.length / 1000).toFixed(2) : 0;
+        const successRate = Math.round((successCount / mResps.length) * 100);
+
+        el.innerHTML = `
+          <div class="flex-row gap-lg">
+            <span><strong>${mResps.length}</strong> total queries</span>
+            <span><strong>${successRate}%</strong> success rate</span>
+            <span><strong>${avgLat}s</strong> avg latency</span>
+          </div>
+        `;
     }
 
     // ─── Load ────────────────────────────────────────────────────────────────────
@@ -231,5 +267,5 @@
         WorkbenchApp.registerTab('models', load);
     }
 
-    window.WorkbenchModels = { init, load, openEdit, saveFromForm, deleteModel, testConnection, getModels };
+    window.WorkbenchModels = { init, load, openEdit, saveFromForm, deleteModel, testConnection, getModels, toggleStats };
 })();

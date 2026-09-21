@@ -275,6 +275,25 @@
     });
     resp._reviewStatus = values.reviewStatus;
     showToast('Record saved.', 'success');
+
+    // Auto-progress experiment to Completed (Item 11)
+    if (_responses.every(r => r._reviewStatus === 'complete')) {
+      const run = await WorkbenchDB.getRun(resp.runId);
+      if (run) {
+        const expId = run.experimentId;
+        const exp = await WorkbenchDB.getExperiment(expId);
+        if (exp && exp.status === 'In Review') {
+          setTimeout(async () => {
+            if (confirm(`All responses for "${exp.title}" are now reviewed.\nWould you like to mark the experiment as Completed?`)) {
+              exp.status = 'Completed';
+              await WorkbenchDB.saveExperiment(exp);
+              WorkbenchBus.emit('experiments:changed');
+              showToast('Experiment status updated to Completed.', 'success');
+            }
+          }, 300); // delay to let UI settle
+        }
+      }
+    }
   }
 
   async function toggleFlag(responseId, flagged) {
