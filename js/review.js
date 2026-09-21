@@ -13,6 +13,7 @@
   let _filter = 'all'; // all | unreviewed | flagged | complete
   let _compareMode = false;
   let _effectiveFields = [];
+  let _modelMap = new Map(); // id -> model object, cached for nav labels
 
   // ─── Load ────────────────────────────────────────────────────────────────────
 
@@ -34,6 +35,10 @@
       return (a.modelId || '').localeCompare(b.modelId || '');
     });
 
+    // Cache model names for nav labels
+    const models = await WorkbenchDB.getAllModels();
+    _modelMap = new Map(models.map(m => [m.id, m]));
+
     renderNav();
     if (_responses.length > 0) await renderResponse(0);
     else renderEmpty('No responses in this run yet.');
@@ -53,14 +58,18 @@
     if (!list) return;
 
     const items = filteredResponses();
-    list.innerHTML = items.map((r, idx) => `
+    list.innerHTML = items.map((r, idx) => {
+      const modelName = _modelMap.get(r.modelId)?.name || r.modelId?.slice(0, 8) || '—';
+      const subtestLabel = r.subtestTitle || r.subtestId?.slice(0, 10) || '—';
+      return `
       <div class="nav-item ${idx === _currentIdx ? 'nav-active' : ''} ${r.reviewFlag ? 'nav-flagged' : ''}"
            data-idx="${idx}" onclick="WorkbenchReview.goTo(${idx})">
-        <span class="nav-subtest">${escapeHtml(r.subtestId?.slice(0, 8) || '—')}</span>
-        <span class="nav-model">${escapeHtml(r.modelId?.slice(0, 8) || '—')}</span>
+        <span class="nav-subtest" title="${escapeHtml(subtestLabel)}">${escapeHtml(subtestLabel.length > 14 ? subtestLabel.slice(0, 13) + '…' : subtestLabel)}</span>
+        <span class="nav-model" title="${escapeHtml(modelName)}">${escapeHtml(modelName.length > 12 ? modelName.slice(0, 11) + '…' : modelName)}</span>
         <span class="nav-iter">#${r.iteration || '?'}</span>
         ${r.reviewFlag ? '<span class="nav-flag">🔖</span>' : ''}
-      </div>`).join('');
+      </div>`;
+    }).join('');
   }
 
   async function renderResponse(idx) {
@@ -182,9 +191,13 @@
       const modelObj = modelsMap.get(resp.modelId);
       html += `
         <div class="panel" style="display:flex; flex-direction:column;">
-          <div class="panel-header" style="justify-content:space-between;">
+          <div class="panel-header" style="justify-content:space-between; flex-wrap:wrap; gap:6px;">
             <span class="panel-title">${escapeHtml(modelObj?.name || resp.modelId)}</span>
-            <span class="meta-tag">⏱ ${resp.latencyMs ? (resp.latencyMs / 1000).toFixed(2) + 's' : '—'}</span>
+            <span class="flex-row gap-sm" style="font-size:11px; color:var(--text-muted);">
+              <span>⏱ ${resp.latencyMs ? (resp.latencyMs / 1000).toFixed(2) + 's' : '—'}</span>
+              <span>↑ ${resp.tokensIn ?? '—'}</span>
+              <span>↓ ${resp.tokensOut ?? '—'}</span>
+            </span>
           </div>
           <div class="panel-body flex-1" style="white-space:pre-wrap; font-size:13px; line-height:1.5;">${escapeHtml(resp.text || '(empty response)')}</div>
         </div>
@@ -202,6 +215,14 @@
     `;
 
     container.innerHTML = html;
+
+    // Keyboard shortcut hint (show once per session)
+    if (!sessionStorage.getItem('kb-hint-shown')) {
+      setTimeout(() => {
+        showToast('Tip: Use ← → to navigate, F to flag, S to save & next', 'info');
+        sessionStorage.setItem('kb-hint-shown', '1');
+      }, 600);
+    }
   }
 
   function toggleCompareMode() {
@@ -298,6 +319,23 @@
 
     document.querySelectorAll('.filter-btn').forEach(btn => {
       btn.addEventListener('click', () => setFilter(btn.dataset.filter));
+    });
+
+    // Keyboard navigation
+    document.addEventListener('keydown', e => {
+      // Only fire when the review tab is active and not inside an input/textarea
+      if (WorkbenchApp.getActiveTab() !== 'review') return;
+      const tag = document.activeElement?.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+
+      if (e.key === 'ArrowRight' || e.key === 'n') { e.preventDefault(); next(); }
+      else if (e.key === 'ArrowLeft' || e.key === 'p') { e.preventDefault(); prev(); }
+      else if (e.key === 'f' || e.key === 'F') {
+        const items = filteredResponses();
+        const resp = items[_currentIdx];
+        if (resp) toggleFlag(resp.id, !resp.reviewFlag);
+      }
+      else if (e.key === 's' || e.key === 'S') { e.preventDefault(); saveAndNext(); }
     });
 
     WorkbenchApp.registerTab('review', load);

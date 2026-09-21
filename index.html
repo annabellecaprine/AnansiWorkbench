@@ -38,7 +38,10 @@
             </nav>
 
             <div class="topbar-actions">
-                <button class="btn btn-sm" onclick="WorkbenchExport?.openBackupRestore?.()">⬆ Backup</button>
+                <button class="btn btn-sm" onclick="WorkbenchExport?.exportJSON?.()"
+                    title="Download full database backup as JSON">⬇ Export JSON</button>
+                <button class="btn btn-sm" onclick="WorkbenchExport?.openBackupRestore?.()"
+                    title="Restore from a JSON backup file">⬆ Restore</button>
             </div>
         </header>
 

@@ -3,34 +3,34 @@
  */
 
 (() => {
-    'use strict';
+  'use strict';
 
-    const { escapeHtml, formatDateTime } = WorkbenchUtils;
+  const { escapeHtml, formatDateTime } = WorkbenchUtils;
 
-    let _experiments = [];
-    let _runs = [];
-    let _allResponses = [];
-    let _query = '';
-    let _selectedExp = 'all';
+  let _experiments = [];
+  let _runs = [];
+  let _allResponses = [];
+  let _query = '';
+  let _selectedExp = 'all';
 
-    async function load() {
-        _experiments = await WorkbenchDB.getAllExperiments();
-        _runs = await WorkbenchDB.getAll('runs');
-        _allResponses = await WorkbenchDB.getAll('responses');
+  async function load() {
+    _experiments = await WorkbenchDB.getAllExperiments();
+    _runs = await WorkbenchDB.getAll('runs');
+    _allResponses = await WorkbenchDB.getAll('responses');
 
-        renderUI();
-    }
+    renderUI();
+  }
 
-    function renderUI() {
-        const container = document.getElementById('tab-archive');
-        if (!container) return;
+  function renderUI() {
+    const container = document.getElementById('tab-archive');
+    if (!container) return;
 
-        const totalExps = _experiments.length;
-        const totalRuns = _runs.length;
-        const totalResponses = _allResponses.length;
-        const flaggedCount = _allResponses.filter(r => r.reviewFlag).length;
+    const totalExps = _experiments.length;
+    const totalRuns = _runs.length;
+    const totalResponses = _allResponses.length;
+    const flaggedCount = _allResponses.filter(r => r.reviewFlag).length;
 
-        container.innerHTML = `
+    container.innerHTML = `
       <div class="section-header">
         <h1 class="section-title">Research Archive</h1>
         <div class="section-actions flex-row gap-sm">
@@ -80,34 +80,34 @@
         ${renderArchiveList()}
       </div>
     `;
+  }
+
+  function renderArchiveList() {
+    let filteredExps = _experiments;
+    if (_selectedExp !== 'all') {
+      filteredExps = filteredExps.filter(e => e.id === _selectedExp);
     }
 
-    function renderArchiveList() {
-        let filteredExps = _experiments;
-        if (_selectedExp !== 'all') {
-            filteredExps = filteredExps.filter(e => e.id === _selectedExp);
-        }
+    const q = _query.toLowerCase().trim();
+    if (q) {
+      filteredExps = filteredExps.filter(e => {
+        const titleMatch = e.title.toLowerCase().includes(q);
+        const descMatch = (e.description || '').toLowerCase().includes(q);
+        const catMatch = (e.category || '').toLowerCase().includes(q);
+        const tagMatch = (e.tags || []).some(t => t.toLowerCase().includes(q));
+        return titleMatch || descMatch || catMatch || tagMatch;
+      });
+    }
 
-        const q = _query.toLowerCase().trim();
-        if (q) {
-            filteredExps = filteredExps.filter(e => {
-                const titleMatch = e.title.toLowerCase().includes(q);
-                const descMatch = (e.description || '').toLowerCase().includes(q);
-                const catMatch = (e.category || '').toLowerCase().includes(q);
-                const tagMatch = (e.tags || []).some(t => t.toLowerCase().includes(q));
-                return titleMatch || descMatch || catMatch || tagMatch;
-            });
-        }
+    if (filteredExps.length === 0) {
+      return `<div class="empty-state"><div class="empty-icon">🗄</div><p>No matching experiments or research records found.</p></div>`;
+    }
 
-        if (filteredExps.length === 0) {
-            return `<div class="empty-state"><div class="empty-icon">🗄</div><p>No matching experiments or research records found.</p></div>`;
-        }
+    return filteredExps.map(exp => {
+      const expRuns = _runs.filter(r => r.experimentId === exp.id);
+      const expResponses = _allResponses.filter(r => expRuns.some(run => run.id === r.runId));
 
-        return filteredExps.map(exp => {
-            const expRuns = _runs.filter(r => r.experimentId === exp.id);
-            const expResponses = _allResponses.filter(r => expRuns.some(run => run.id === r.runId));
-
-            return `
+      return `
         <div class="panel" style="margin-bottom:16px;">
           <div class="panel-header" style="justify-content:space-between; align-items:center;">
             <div>
@@ -120,57 +120,69 @@
           <div class="panel-body">
             <p style="font-size:13px; color:var(--text-secondary); margin-bottom:12px;">${escapeHtml(exp.description || 'No description provided.')}</p>
             
-            <div class="flex-row gap-lg align-center wrap" style="font-size:12px; color:var(--text-muted); border-top:1px solid var(--border-subtle); pt-2; margin-top:8px; padding-top:8px;">
+            <div class="flex-row gap-lg align-center wrap" style="font-size:12px; color:var(--text-muted); border-top:1px solid var(--border-subtle); margin-top:8px; padding-top:8px;">
               <span>🏃 <strong>${expRuns.length}</strong> Runs</span>
-              <span>💬 <strong>${expResponses.length}</strong> Total Responses</span>
+              <span>💬 <strong>${expResponses.length}</strong> Responses</span>
               <span>🏷 Tags: ${exp.tags?.length ? exp.tags.map(t => `<span class="badge badge-gray" style="font-size:10px;">${escapeHtml(t)}</span>`).join(' ') : '—'}</span>
+              ${expResponses.length > 0 ? (() => {
+          const reviewed = expResponses.filter(r => r._reviewStatus === 'complete').length;
+          const flagged = expResponses.filter(r => r.reviewFlag).length;
+          const pct = Math.round((reviewed / expResponses.length) * 100);
+          return `<span>✅ <strong>${pct}%</strong> reviewed</span><span>🔖 <strong>${flagged}</strong> flagged</span>`;
+        })() : ''}
             </div>
 
             ${expRuns.length > 0 ? `
               <div style="margin-top:12px;">
                 <div style="font-size:12px; font-weight:600; color:var(--text-primary); margin-bottom:6px;">Runs History:</div>
                 <div class="flex-column gap-xs">
-                  ${expRuns.map(run => `
+                  ${expRuns.map(run => {
+          const runResps = expResponses.filter(r => r.runId === run.id);
+          const runReviewed = runResps.filter(r => r._reviewStatus === 'complete').length;
+          const runFlagged = runResps.filter(r => r.reviewFlag).length;
+          const runPct = runResps.length > 0 ? Math.round((runReviewed / runResps.length) * 100) : 0;
+          return `
                     <div class="flex-row align-center justify-between" style="background:var(--bg-card); padding:8px 12px; border-radius:6px; font-size:12px;">
                       <div>
-                        <strong>Run ${run.id.slice(0, 8)}</strong> — Status: <span class="status-badge badge-${run.status === 'completed' ? 'green' : 'gray'}">${run.status}</span>
+                        <strong>Run ${run.id.slice(0, 8)}</strong> — <span class="status-badge badge-${run.status === 'completed' ? 'green' : 'gray'}">${run.status}</span>
                         <span style="color:var(--text-muted); margin-left:8px;">${formatDateTime(run.startedAt || run.createdAt)}</span>
+                        ${runResps.length > 0 ? `<span style="color:var(--text-muted); margin-left:8px;">· ${runResps.length} responses · ${runPct}% reviewed · ${runFlagged} flagged</span>` : ''}
                       </div>
                       <button class="btn btn-sm" onclick="WorkbenchArchive.openRunInReview('${run.id}')">📋 Open in Review</button>
-                    </div>
-                  `).join('')}
+                    </div>`;
+        }).join('')}
                 </div>
               </div>
             ` : ''}
           </div>
         </div>
       `;
-        }).join('');
-    }
+    }).join('');
+  }
 
-    function onSearch(q) {
-        _query = q;
-        const listContainer = document.getElementById('archive-list');
-        if (listContainer) listContainer.innerHTML = renderArchiveList();
-    }
+  function onSearch(q) {
+    _query = q;
+    const listContainer = document.getElementById('archive-list');
+    if (listContainer) listContainer.innerHTML = renderArchiveList();
+  }
 
-    function onFilterExp(expId) {
-        _selectedExp = expId;
-        const listContainer = document.getElementById('archive-list');
-        if (listContainer) listContainer.innerHTML = renderArchiveList();
-    }
+  function onFilterExp(expId) {
+    _selectedExp = expId;
+    const listContainer = document.getElementById('archive-list');
+    if (listContainer) listContainer.innerHTML = renderArchiveList();
+  }
 
-    function openRunInReview(runId) {
-        WorkbenchState.selectedRunId = runId;
-        WorkbenchReview.loadRun(runId);
-        WorkbenchApp.activateTab('review');
-    }
+  function openRunInReview(runId) {
+    WorkbenchState.selectedRunId = runId;
+    WorkbenchReview.loadRun(runId);
+    WorkbenchApp.activateTab('review');
+  }
 
-    async function init() {
-        WorkbenchApp.registerTab('archive', load);
-    }
+  async function init() {
+    WorkbenchApp.registerTab('archive', load);
+  }
 
-    window.WorkbenchArchive = {
-        init, load, onSearch, onFilterExp, openRunInReview
-    };
+  window.WorkbenchArchive = {
+    init, load, onSearch, onFilterExp, openRunInReview
+  };
 })();

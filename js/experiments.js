@@ -62,6 +62,8 @@
             <span class="meta-tag">🧪 ${plural(exp.subtests?.length || 0, 'subtest')}</span>
             <span class="meta-tag">🔄 ${exp.defaultRepetitions ?? 5}× per model</span>
           </div>
+          ${exp.subtests?.length > 0 ? `<div class="exp-subtest-chips">${exp.subtests.slice(0, 3).map(st => `<span class="subtest-chip">${escapeHtml(st.title || 'Untitled')}</span>`).join('')
+                }${exp.subtests.length > 3 ? `<span class="subtest-chip subtest-chip-more">+${exp.subtests.length - 3} more</span>` : ''}</div>` : ''}
           <div class="exp-dates">Modified ${formatDateTime(exp.modifiedAt)}</div>
         </div>
       </div>`).join('');
@@ -639,6 +641,26 @@
 
         WorkbenchBus.on('models:changed', () => { if (_editingId) load(); });
         WorkbenchApp.registerTab('experiments', load);
+
+        // Live char/token counters on prompt textareas
+        const promptFields = [
+            'exp-form-personality', 'exp-form-scenario', 'exp-form-initial-msg',
+            'st-form-personality', 'st-form-scenario', 'st-form-initial-msg',
+        ];
+        promptFields.forEach(fieldId => {
+            const el = document.getElementById(fieldId);
+            if (!el) return;
+            const counter = document.createElement('span');
+            counter.className = 'char-counter';
+            counter.textContent = '0 chars / ~0 tokens';
+            el.insertAdjacentElement('afterend', counter);
+            const update = () => {
+                const len = el.value.length;
+                counter.textContent = `${len.toLocaleString()} chars / ~${Math.ceil(len / 4).toLocaleString()} tokens`;
+            };
+            el.addEventListener('input', update);
+            update();
+        });
     }
 
     window.WorkbenchExperiments = {
