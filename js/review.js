@@ -14,6 +14,9 @@
   let _compareMode = false;
   let _effectiveFields = [];
   let _modelMap = new Map(); // id -> model object, cached for nav labels
+  let _completedRuns = [];
+  let _crossRunId = null;
+  let _crossRunResponses = [];
 
   // ─── Load ────────────────────────────────────────────────────────────────────
 
@@ -38,6 +41,18 @@
     // Cache model names for nav labels
     const models = await WorkbenchDB.getAllModels();
     _modelMap = new Map(models.map(m => [m.id, m]));
+
+    // Fetch other completed runs for the cross-run comparison
+    const currentRun = await WorkbenchDB.getRun(runId);
+    if (currentRun && currentRun.experimentId) {
+      const allRuns = await WorkbenchDB.getAll('runs');
+      _completedRuns = allRuns.filter(r => r.experimentId === currentRun.experimentId && r.status === 'completed' && r.id !== runId);
+      _completedRuns.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+    } else {
+      _completedRuns = [];
+    }
+    _crossRunId = null;
+    _crossRunResponses = [];
 
     renderNav();
     if (_responses.length > 0) await renderResponse(0);
@@ -106,6 +121,10 @@
           <span>Iteration ${resp.iteration || '?'}</span>
         </div>
         <div class="flex-row align-center gap-sm">
+          <select id="review-cross-run-select" class="form-control" style="width: auto; padding: 4px 8px; font-size: 11px;" onchange="WorkbenchReview.onCrossRunChange(this.value)">
+            <option value="">Compare with Run...</option>
+            ${_completedRuns.map(r => `<option value="${r.id}" ${r.id === _crossRunId ? 'selected' : ''}>Run ${r.id.slice(0, 8)} (${formatDateTime(r.createdAt || '')})</option>`).join('')}
+          </select>
           <button class="btn btn-sm" onclick="WorkbenchReview.toggleCompareMode()">${_compareMode ? '📄 Single View' : '⚖ Compare Models'}</button>
           <div class="review-meta">
             <span class="meta-tag">⏱ ${resp.latencyMs ? (resp.latencyMs / 1000).toFixed(2) + 's' : '—'}</span>
@@ -123,14 +142,38 @@
         </div>
       </div>
 
-      <div class="review-stimulus">
-        <div class="review-label">USER RESPONSE (Stimulus)</div>
-        <div class="review-stimulus-text">${escapeHtml(resp.promptSent?.find(m => m.role === 'user')?.content || '—')}</div>
-      </div>
+      <div style="display:flex; gap:16px;">
+        <div style="flex:1; min-width:0;">
+          ${_crossRunId ? `<div style="font-weight:600; margin-bottom:12px; color:var(--text-primary);">Current Run</div>` : ''}
+          <div class="review-stimulus">
+            <div class="review-label">USER RESPONSE (Stimulus)</div>
+            <div class="review-stimulus-text">${escapeHtml(resp.promptSent?.find(m => m.role === 'user')?.content || '—')}</div>
+          </div>
 
-      <div class="review-response">
-        <div class="review-label">GENERATED RESPONSE</div>
-        <div class="review-response-text" id="review-resp-text">${escapeHtml(resp.text || '(empty response)')}</div>
+          <div class="review-response">
+            <div class="review-label">GENERATED RESPONSE</div>
+            <div class="review-response-text" id="review-resp-text">${escapeHtml(resp.text || '(empty response)')}</div>
+          </div>
+        </div>
+        ${_crossRunId ? `
+        <div style="flex:1; min-width:0; border-left:1px solid var(--border); padding-left:16px;">
+          <div style="font-weight:600; margin-bottom:12px; color:var(--text-muted);">Run ${_crossRunId.slice(0, 8)}</div>
+          ${(() => {
+          const cross = _crossRunResponses.find(r => r.subtestId === resp.subtestId && r.iteration === resp.iteration && r.modelId === resp.modelId);
+          if (!cross) return '<div class="empty-state-sm">No matching response found.</div>';
+          return `
+              <div class="review-stimulus">
+                <div class="review-label">USER RESPONSE (Stimulus)</div>
+                <div class="review-stimulus-text">${escapeHtml(cross.promptSent?.find(m => m.role === 'user')?.content || '—')}</div>
+              </div>
+              <div class="review-response">
+                <div class="review-label">GENERATED RESPONSE</div>
+                <div class="review-response-text">${escapeHtml(cross.text || '(empty response)')}</div>
+              </div>
+            `;
+        })()}
+        </div>
+        ` : ''}
       </div>
 
       <div class="review-record-sheet" id="review-record-sheet">
@@ -227,6 +270,16 @@
 
   function toggleCompareMode() {
     _compareMode = !_compareMode;
+    renderResponse(_currentIdx);
+  }
+
+  async function onCrossRunChange(runId) {
+    _crossRunId = runId || null;
+    if (_crossRunId) {
+      _crossRunResponses = await WorkbenchDB.getResponsesForRun(_crossRunId);
+    } else {
+      _crossRunResponses = [];
+    }
     renderResponse(_currentIdx);
   }
 
@@ -389,5 +442,5 @@
     else renderEmpty('No responses found for this filter.');
   }
 
-  window.WorkbenchReview = { init, load, loadRun, drilldown, goTo, prev, next, saveAndNext, toggleFlag, togglePrompt, setFilter, toggleCompareMode };
+  window.WorkbenchReview = { init, load, loadRun, drilldown, goTo, prev, next, saveAndNext, toggleFlag, togglePrompt, setFilter, toggleCompareMode, onCrossRunChange };
 })();

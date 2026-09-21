@@ -99,6 +99,8 @@
         document.getElementById('exp-form-tokens').value = exp?.defaultParams?.max_tokens ?? 500;
         document.getElementById('exp-form-interval').value = (exp?.throttle?.minInterval ?? 1000) / 1000;
         document.getElementById('exp-form-concurrency').value = exp?.throttle?.concurrency ?? 1;
+        document.getElementById('exp-form-budget-tokens').value = exp?.spendingLimit?.tokens || '';
+        document.getElementById('exp-form-budget-time').value = exp?.spendingLimit?.minutes || '';
 
         // Model selection
         renderModelCheckboxes(exp?.defaultModels || []);
@@ -167,6 +169,10 @@
             throttle: {
                 minInterval: (parseFloat(document.getElementById('exp-form-interval').value) || 1) * 1000,
                 concurrency: parseInt(document.getElementById('exp-form-concurrency').value) || 1,
+            },
+            spendingLimit: {
+                tokens: parseInt(document.getElementById('exp-form-budget-tokens').value) || null,
+                minutes: parseFloat(document.getElementById('exp-form-budget-time').value) || null,
             },
             subtests: existing?.subtests || [],
         };
@@ -596,6 +602,41 @@
         renderFieldSchemaList(updated);
     }
 
+    const DEBUG_PRESET_FIELDS = [
+        { name: 'Persona Fidelity', type: 'rating', description: 'Did the character sound like themselves?', required: true },
+        { name: 'Tone Consistency', type: 'rating', description: 'Were tone and mood appropriate?', required: true },
+        { name: 'Instruction Compliance', type: 'single_choice', description: 'Did it follow system instructions?', required: true, options: ['Yes', 'Partial', 'No'] },
+        { name: 'Response Coherence', type: 'rating', description: 'Internal logic and readability.', required: false },
+        { name: 'Hallucination Flag', type: 'checkbox', description: 'Did the model hallucinate details?', required: false },
+        { name: 'Reviewer Notes', type: 'long_text', description: 'Internal review notes limit 1000 chars.', required: false }
+    ];
+
+    async function loadDebugPreset() {
+        if (!_editingId) {
+            showToast('Please save the experiment first.', 'warning');
+            return;
+        }
+        const ok = await showConfirm('Load standard 6-field Debug Tracker preset? Existing fields will NOT be deleted.', 'Load Preset');
+        if (!ok) return;
+
+        let currentOrder = _fieldSchemas.length;
+        for (const pf of DEBUG_PRESET_FIELDS) {
+            await WorkbenchDB.saveFieldSchema({
+                experimentId: _editingId,
+                name: pf.name,
+                type: pf.type,
+                description: pf.description,
+                options: pf.options || [],
+                required: pf.required,
+                displayOrder: currentOrder++
+            });
+        }
+
+        showToast('Debug Tracker preset loaded.', 'success');
+        const updated = await WorkbenchDB.getFieldSchemas(_editingId);
+        renderFieldSchemaList(updated);
+    }
+
     async function deleteFieldSchema(id) {
         const ok = await showConfirm('Delete this recording field?', 'Delete Field');
         if (!ok) return;
@@ -638,6 +679,7 @@
 
         document.getElementById('btn-add-field-schema')?.addEventListener('click', addFieldSchema);
         document.getElementById('field-form-save')?.addEventListener('click', saveFieldSchemaFromForm);
+        document.getElementById('btn-load-preset-fields')?.addEventListener('click', loadDebugPreset);
 
         // Prompt Mode & Override toggle handlers
         ['personality', 'scenario', 'initial'].forEach(key => {

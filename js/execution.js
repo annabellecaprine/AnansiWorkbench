@@ -156,6 +156,22 @@
                     return;
                 }
 
+                // Check Token Budget and Time Limit (Phase 3 Item 13)
+                const limitT = snapshot.spendingLimit?.tokens;
+                const limitM = snapshot.spendingLimit?.minutes;
+
+                if (limitT && (_runTokensIn + _runTokensOut) >= limitT) {
+                    _inlinePaused = true;
+                    sendToUI('BATCH_PAUSED', { reason: 'Token budget exceeded' });
+                    return;
+                }
+
+                if (limitM && (Date.now() - _startTime) >= limitM * 60000) {
+                    _inlinePaused = true;
+                    sendToUI('BATCH_PAUSED', { reason: 'Time limit exceeded' });
+                    return;
+                }
+
                 // Resolve subtest label for context display
                 const subtestLabel = job.subtestTitle || job.subtestId?.slice(0, 12) || 'Subtest';
                 const model = await WorkbenchDB.getModel(job.modelId);
@@ -312,7 +328,7 @@
             case 'JOB_STARTED': onJobStarted(msg); break;
             case 'JOB_COMPLETE': onJobComplete(msg); break;
             case 'JOB_FAILED': onJobFailed(msg); break;
-            case 'BATCH_PAUSED': onBatchPaused(); break;
+            case 'BATCH_PAUSED': onBatchPaused(msg); break;
             case 'BATCH_COMPLETE': onBatchComplete(msg); break;
             case 'UNCERTAIN_JOBS': onUncertainJobs(msg.jobs); break;
             case 'ERROR': showToast('Worker: ' + msg.message, 'error'); break;
@@ -595,10 +611,12 @@
         appendLog(`✗ Job ${msg.jobId.slice(0, 8)}… failed: ${msg.error}`, 'log-error');
     }
 
-    function onBatchPaused() {
+    function onBatchPaused(msg = {}) {
         stopStatsPolling();
         updateControls('paused');
-        showToast('Batch paused. Active requests have completed.', 'info');
+        const reasonStr = msg.reason ? ` (${msg.reason})` : ' Active requests have completed.';
+        showToast(`Batch paused.${reasonStr}`, 'info');
+        if (msg.reason) appendLog(`⏸ Batch paused: ${msg.reason}`, 'log-info');
     }
 
     async function onBatchComplete(msg) {

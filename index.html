@@ -648,6 +648,24 @@
                     <hr class="divider">
                     <h3
                         style="font-size:13px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:14px;">
+                        Execution Budgets</h3>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="exp-form-budget-tokens"
+                                title="Pauses the batch if this sum of generated and prompt tokens is reached across the entire execution. Leave blank for no limit.">Token
+                                Limit</label>
+                            <input type="number" id="exp-form-budget-tokens" min="1" placeholder="e.g. 50000">
+                        </div>
+                        <div class="form-group">
+                            <label for="exp-form-budget-time"
+                                title="Pauses the batch if execution takes longer than this many minutes. Leave blank for no limit.">Time
+                                Limit (mins)</label>
+                            <input type="number" id="exp-form-budget-time" min="1" placeholder="e.g. 15">
+                        </div>
+                    </div>
+                    <hr class="divider">
+                    <h3
+                        style="font-size:13px;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.5px;margin-bottom:14px;">
                         Selected Models</h3>
                     <div class="model-checkboxes" id="exp-model-checkboxes">
                         <p class="hint">Loading models…</p>
@@ -671,6 +689,7 @@
                 <div id="builder-tab-fields" class="builder-tab-panel" style="display:none">
                     <div class="subtest-toolbar">
                         <button class="btn btn-primary" id="btn-add-field-schema">+ Add Recording Field</button>
+                        <button class="btn" id="btn-load-preset-fields">Load Debug Preset</button>
                         <span class="hint flex-1">Define custom metrics (ratings, notes, checkboxes) to record during
                             response review.</span>
                     </div>
