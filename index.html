@@ -149,6 +149,12 @@
                         <div class="exec-progress-bar" id="exec-progress-bar"></div>
                     </div>
 
+                    <!-- Active Job Context -->
+                    <div class="exec-job-context" id="exec-job-context" style="display:none">
+                        <span class="job-context-icon">⚡</span>
+                        <span id="exec-job-context-label">—</span>
+                    </div>
+
                     <!-- Stats grid -->
                     <div class="exec-stats-grid">
                         <div class="stat-card">
@@ -186,6 +192,22 @@
                         <div class="stat-card flex-1">
                             <div class="stat-value" id="stat-eta">—</div>
                             <div class="stat-label">Est. Remaining</div>
+                        </div>
+                    </div>
+
+                    <!-- Token Totals -->
+                    <div class="flex-row" id="stat-tokens-row" style="display:none">
+                        <div class="stat-card flex-1">
+                            <div class="stat-value text-teal" id="stat-tokens-in">—</div>
+                            <div class="stat-label">Tokens In</div>
+                        </div>
+                        <div class="stat-card flex-1">
+                            <div class="stat-value text-green" id="stat-tokens-out">—</div>
+                            <div class="stat-label">Tokens Out</div>
+                        </div>
+                        <div class="stat-card flex-1">
+                            <div class="stat-value text-accent" id="stat-tokens-total">—</div>
+                            <div class="stat-label">Total Tokens</div>
                         </div>
                     </div>
 

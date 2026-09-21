@@ -2084,3 +2084,48 @@ textarea {
     font-size: 11px;
     border-radius: 4px;
 }
+
+/* ════════════════════════════════════════════════════════════
+   ACTIVE JOB CONTEXT STRIP
+   ════════════════════════════════════════════════════════════ */
+.exec-job-context {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(99, 102, 241, 0.08);
+    border: 1px solid rgba(99, 102, 241, 0.2);
+    border-radius: var(--radius-sm, 6px);
+    padding: 7px 12px;
+    font-size: 12px;
+    color: var(--text-secondary, #94a3b8);
+    margin-top: 6px;
+    animation: ctx-pulse 2s ease-in-out infinite;
+}
+
+.job-context-icon {
+    font-size: 11px;
+    animation: icon-spin 3s linear infinite;
+    display: inline-block;
+}
+
+@keyframes ctx-pulse {
+
+    0%,
+    100% {
+        border-color: rgba(99, 102, 241, 0.2);
+    }
+
+    50% {
+        border-color: rgba(99, 102, 241, 0.45);
+    }
+}
+
+@keyframes icon-spin {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
+}

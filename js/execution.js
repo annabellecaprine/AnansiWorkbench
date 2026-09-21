@@ -85,7 +85,64 @@
         setTimeout(() => sendToUI('READY'), 20);
     }
 
+    // ─── Inline Fetch Helper ──────────────────────────────────────────────────────
+
+    /**
+     * Perform a single LLM API request with retry + exponential backoff.
+     * Respects retry-after headers on 429 responses.
+     */
+    async function fetchWithRetry(url, body, headers, maxRetries) {
+        const MAX = maxRetries ?? 3;
+        let attempt = 0;
+        let delay = 2000;
+        while (true) {
+            let response;
+            try {
+                response = await fetch(url, {
+                    method: 'POST',
+                    headers,
+                    body: JSON.stringify(body),
+                });
+            } catch (networkErr) {
+                if (attempt >= MAX - 1) throw networkErr;
+                attempt++;
+                await new Promise(r => setTimeout(r, delay));
+                delay = Math.min(delay * 2, 30000);
+                continue;
+            }
+
+            if (response.status === 429) {
+                const retryAfterSec = parseInt(response.headers?.get?.('retry-after') || '0') || 0;
+                const backoff = retryAfterSec > 0 ? retryAfterSec * 1000 : delay;
+                if (attempt >= MAX - 1) {
+                    const text = await response.text().catch(() => '');
+                    throw new Error(`HTTP 429 (rate limited, ${MAX} retries exhausted): ${text.slice(0, 200)}`);
+                }
+                attempt++;
+                await new Promise(r => setTimeout(r, backoff));
+                delay = Math.min(delay * 2, 30000);
+                continue;
+            }
+
+            if (!response.ok) {
+                if (attempt < MAX - 1 && response.status >= 500) {
+                    attempt++;
+                    await new Promise(r => setTimeout(r, delay));
+                    delay = Math.min(delay * 2, 30000);
+                    continue;
+                }
+                const text = await response.text().catch(() => '');
+                throw new Error(`HTTP ${response.status}: ${text.slice(0, 200)}`);
+            }
+
+            return response;
+        }
+    }
+
     async function runInlineBatch(runId, sendToUI) {
+        let _runTokensIn = 0;
+        let _runTokensOut = 0;
+
         try {
             const run = await WorkbenchDB.getRun(runId);
             const snapshot = run?.snapshot || {};
@@ -99,10 +156,21 @@
                     return;
                 }
 
+                // Resolve subtest label for context display
+                const subtestLabel = job.subtestTitle || job.subtestId?.slice(0, 12) || 'Subtest';
+                const model = await WorkbenchDB.getModel(job.modelId);
+                const modelLabel = model?.name || model?.modelIdentifier || 'Unknown Model';
+
+                sendToUI('JOB_CONTEXT', {
+                    jobId: job.id,
+                    subtest: subtestLabel,
+                    model: modelLabel,
+                    iteration: job.iteration,
+                    iterationTotal: job.iterationTotal || '?',
+                });
                 sendToUI('JOB_STARTED', { jobId: job.id });
                 await WorkbenchDB.saveJob({ ...job, status: 'in_progress', startedAt: new Date().toISOString() });
 
-                const model = await WorkbenchDB.getModel(job.modelId);
                 if (!model) {
                     await WorkbenchDB.saveJob({ ...job, status: 'failed', lastError: 'Model not found' });
                     sendToUI('JOB_FAILED', { jobId: job.id, error: 'Model not found' });
@@ -134,12 +202,12 @@
                 let tokensIn = null;
                 let tokensOut = null;
                 let latencyMs = 0;
+                const maxRetries = model.maxRetries ?? snapshot.throttle?.maxRetries ?? 3;
 
                 const t0 = Date.now();
 
                 try {
                     if (model.provider === 'mock') {
-                        // Mock provider for explicit testing
                         const delay = model.mockDelay ?? 500;
                         await new Promise(r => setTimeout(r, delay));
                         resultText = `[Mock response to: "${userResponse.slice(0, 50)}..."]`;
@@ -147,11 +215,10 @@
                         tokensOut = 40;
                         latencyMs = Date.now() - t0;
                     } else {
-                        // Real LLM fetch call (Chutes AI, OpenAI Compatible, etc.)
                         const defaultEp = model.provider === 'chutes' ? 'https://llm.chutes.ai/v1' : 'https://api.openai.com/v1';
                         const url = WorkbenchUtils.buildChatCompletionsUrl(model.endpoint || defaultEp, defaultEp);
 
-                        const body = {
+                        const reqBody = {
                             model: model.modelIdentifier,
                             messages,
                             temperature: model.temperature ?? snapshot.defaultParams?.temperature ?? 0.9,
@@ -160,21 +227,9 @@
                         };
 
                         const headers = { 'Content-Type': 'application/json' };
-                        if (model.apiKey) {
-                            headers['Authorization'] = `Bearer ${model.apiKey}`;
-                        }
+                        if (model.apiKey) headers['Authorization'] = `Bearer ${model.apiKey}`;
 
-                        const response = await fetch(url, {
-                            method: 'POST',
-                            headers,
-                            body: JSON.stringify(body),
-                        });
-
-                        if (!response.ok) {
-                            const errText = await response.text().catch(() => '');
-                            throw new Error(`HTTP ${response.status}: ${errText.slice(0, 200)}`);
-                        }
-
+                        const response = await fetchWithRetry(url, reqBody, headers, maxRetries);
                         const data = await response.json();
                         latencyMs = Date.now() - t0;
                         const choice = data.choices?.[0];
@@ -183,6 +238,9 @@
                         tokensIn = data.usage?.prompt_tokens ?? null;
                         tokensOut = data.usage?.completion_tokens ?? null;
                     }
+
+                    if (tokensIn) _runTokensIn += tokensIn;
+                    if (tokensOut) _runTokensOut += tokensOut;
 
                     const resp = await WorkbenchDB.saveResponse({
                         id: WorkbenchDB.generateId(),
@@ -207,7 +265,12 @@
                         completedAt: new Date().toISOString()
                     });
 
-                    sendToUI('JOB_COMPLETE', { jobId: job.id, responseId: resp.id });
+                    sendToUI('JOB_COMPLETE', {
+                        jobId: job.id,
+                        responseId: resp.id,
+                        tokensIn: _runTokensIn,
+                        tokensOut: _runTokensOut,
+                    });
 
                 } catch (jobErr) {
                     console.error('[Execution Inline] Job execution error:', jobErr);
@@ -220,10 +283,9 @@
                 }
 
                 const currentStats = await WorkbenchDB.getJobStats(runId);
-                sendToUI('STATUS', { stats: currentStats, runId });
+                sendToUI('STATUS', { stats: currentStats, runId, tokensIn: _runTokensIn, tokensOut: _runTokensOut });
 
-                // Respect model request interval if defined
-                const minInterval = model.requestInterval || snapshot.throttle?.minInterval || 500;
+                const minInterval = model?.requestInterval || snapshot.throttle?.minInterval || 0;
                 if (minInterval > 0) {
                     await new Promise(r => setTimeout(r, minInterval));
                 }
@@ -234,7 +296,7 @@
                 await WorkbenchDB.saveRun({ ...runEnd, status: 'completed', completedAt: new Date().toISOString() });
             }
 
-            sendToUI('BATCH_COMPLETE', { runId });
+            sendToUI('BATCH_COMPLETE', { runId, tokensIn: _runTokensIn, tokensOut: _runTokensOut });
         } catch (err) {
             console.error('[Execution Inline] Batch error:', err);
             sendToUI('ERROR', { message: err.message });
@@ -245,7 +307,8 @@
         const msg = e.data || {};
         switch (msg.type) {
             case 'READY': onWorkerReady(); break;
-            case 'STATUS': updateStats(msg.stats); break;
+            case 'STATUS': updateStats(msg.stats, msg.tokensIn, msg.tokensOut); break;
+            case 'JOB_CONTEXT': onJobContext(msg); break;
             case 'JOB_STARTED': onJobStarted(msg); break;
             case 'JOB_COMPLETE': onJobComplete(msg); break;
             case 'JOB_FAILED': onJobFailed(msg); break;
@@ -480,6 +543,27 @@
 
     function setEl(id, val) { const el = document.getElementById(id); if (el) el.textContent = val; }
 
+    function onJobContext(msg) {
+        const ctx = document.getElementById('exec-job-context');
+        const lbl = document.getElementById('exec-job-context-label');
+        if (!ctx || !lbl) return;
+        ctx.style.display = '';
+        lbl.textContent = `${msg.subtest}  ·  ${msg.model}  ·  Iteration ${msg.iteration}`;
+    }
+
+    function updateTokenTotals(tokensIn, tokensOut) {
+        const row = document.getElementById('stat-tokens-row');
+        if (!row) return;
+        const ti = tokensIn ?? 0;
+        const to = tokensOut ?? 0;
+        if (ti > 0 || to > 0) {
+            row.style.display = '';
+            setEl('stat-tokens-in', ti.toLocaleString());
+            setEl('stat-tokens-out', to.toLocaleString());
+            setEl('stat-tokens-total', (ti + to).toLocaleString());
+        }
+    }
+
     function onJobStarted(msg) {
         appendLog(`▶ Job ${msg.jobId.slice(0, 8)}… started`);
     }
@@ -487,6 +571,9 @@
     function onJobComplete(msg) {
         appendLog(`✓ Job ${msg.jobId.slice(0, 8)}… complete`);
         WorkbenchBus.emit('response:saved', { responseId: msg.responseId });
+        if (msg.tokensIn !== undefined || msg.tokensOut !== undefined) {
+            updateTokenTotals(msg.tokensIn, msg.tokensOut);
+        }
     }
 
     function onJobFailed(msg) {
@@ -507,6 +594,12 @@
         showToast('Batch complete! All jobs finished.', 'success');
         WorkbenchBus.emit('batch:complete', { runId: msg.runId });
         renderRunHistory();
+        if (msg.tokensIn !== undefined || msg.tokensOut !== undefined) {
+            updateTokenTotals(msg.tokensIn, msg.tokensOut);
+        }
+        // Hide active job context label
+        const ctx = document.getElementById('exec-job-context');
+        if (ctx) ctx.style.display = 'none';
     }
 
     function appendLog(msg, cls = '') {
@@ -730,7 +823,7 @@
 
     // ─── Stats & Progress ─────────────────────────────────────────────────────────
 
-    function updateStats(stats) {
+    function updateStats(stats, tokensIn, tokensOut) {
         if (!stats) return;
         const completedPct = stats.total > 0 ? Math.round((stats.completed / stats.total) * 100) : 0;
 
@@ -752,6 +845,11 @@
             setEl('stat-eta', formatDuration(remainingMs));
         }
         if (_startTime) setEl('stat-elapsed', formatDuration(Date.now() - _startTime));
+
+        // Token totals
+        if (tokensIn !== undefined || tokensOut !== undefined) {
+            updateTokenTotals(tokensIn, tokensOut);
+        }
 
         updateHud(stats);
 
