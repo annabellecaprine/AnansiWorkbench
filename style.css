@@ -1462,6 +1462,12 @@ textarea {
     max-height: 92vh;
 }
 
+/* Confirm and prompt dialogs must always float above any other open modal */
+#modal-confirm,
+#modal-prompt {
+    z-index: 1100;
+}
+
 /* ════════════════════════════════════════════════════════════
    TOASTS
    ════════════════════════════════════════════════════════════ */
@@ -2162,5 +2168,6 @@ textarea {
          b o r d e r - c o l o r :   t r a n s p a r e n t ; 
          c o l o r :   v a r ( - - t e x t - m u t e d ) ; 
  } 
-  
+ 
+ 
  
