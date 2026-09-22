@@ -500,38 +500,56 @@
 
     // ─── Field Schema Drag Reorder ────────────────────────────────────────────────
 
+    let _fieldDragAbort = null;
+
     function setupFieldSchemaDrag() {
-        const rows = document.querySelectorAll('#field-schema-list [data-schema-id]');
+        const container = document.getElementById('field-schema-list');
+        if (!container) return;
+
+        // Tear down any previous listeners from the last render
+        if (_fieldDragAbort) _fieldDragAbort.abort();
+        _fieldDragAbort = new AbortController();
+        const opts = { signal: _fieldDragAbort.signal };
+
         let dragSrc = null;
 
-        rows.forEach(row => {
-            row.addEventListener('dragstart', e => {
-                dragSrc = row;
-                row.classList.add('dragging');
-                e.dataTransfer.effectAllowed = 'move';
-                e.dataTransfer.setData('text/plain', row.dataset.idx);
-            });
-            row.addEventListener('dragend', () => row.classList.remove('dragging'));
-            row.addEventListener('dragover', e => {
-                e.preventDefault();
-                e.dataTransfer.dropEffect = 'move';
-            });
-            row.addEventListener('drop', async e => {
-                e.preventDefault();
-                if (dragSrc === row) return;
-                const srcIdx = parseInt(e.dataTransfer.getData('text/plain'));
-                const destIdx = parseInt(row.dataset.idx);
-                // Reorder the local array
-                const moved = _fieldSchemas.splice(srcIdx, 1)[0];
-                _fieldSchemas.splice(destIdx, 0, moved);
-                // Persist new displayOrder for every schema
-                await Promise.all(
-                    _fieldSchemas.map((s, i) => WorkbenchDB.saveFieldSchema({ ...s, displayOrder: i }))
-                );
-                renderFieldSchemaList(_fieldSchemas);
-            });
-        });
+        // Use container-level delegation so dragover/drop fire even when
+        // the pointer is over a child element (badge, button, text span).
+        container.addEventListener('dragstart', e => {
+            const row = e.target.closest('[data-schema-id]');
+            if (!row) return;
+            dragSrc = row;
+            row.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', row.dataset.idx);
+        }, opts);
+
+        container.addEventListener('dragend', e => {
+            const row = e.target.closest('[data-schema-id]');
+            if (row) row.classList.remove('dragging');
+            dragSrc = null;
+        }, opts);
+
+        container.addEventListener('dragover', e => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+        }, opts);
+
+        container.addEventListener('drop', async e => {
+            e.preventDefault();
+            const destRow = e.target.closest('[data-schema-id]');
+            if (!destRow || !dragSrc || dragSrc === destRow) return;
+            const srcIdx = parseInt(dragSrc.dataset.idx);
+            const destIdx = parseInt(destRow.dataset.idx);
+            const moved = _fieldSchemas.splice(srcIdx, 1)[0];
+            _fieldSchemas.splice(destIdx, 0, moved);
+            await Promise.all(
+                _fieldSchemas.map((s, i) => WorkbenchDB.saveFieldSchema({ ...s, displayOrder: i }))
+            );
+            renderFieldSchemaList(_fieldSchemas);
+        }, opts);
     }
+
 
     // ─── Field Schema Builder ─────────────────────────────────────────────────────
 
