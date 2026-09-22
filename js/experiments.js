@@ -523,15 +523,33 @@
             srcRow.style.outline = '2px dashed var(--accent)';
 
             let destIdx = srcIdx;
+            let lastHighlit = null;
+
+            function clearHighlight() {
+                if (lastHighlit && lastHighlit !== srcRow) {
+                    lastHighlit.style.boxShadow = '';
+                }
+            }
 
             function onMove(e) {
-                // Find which row the pointer is currently over
+                // Find nearest row by center-point distance — gaps between flex rows
+                // mean strict rect overlap can miss entirely, leaving destIdx unchanged.
                 const rows = [...container.querySelectorAll('[data-schema-id]')];
+                let nearest = null;
+                let nearestDist = Infinity;
                 for (const r of rows) {
                     const rect = r.getBoundingClientRect();
-                    if (e.clientY >= rect.top && e.clientY <= rect.bottom) {
-                        destIdx = parseInt(r.dataset.idx);
-                        break;
+                    const center = rect.top + rect.height / 2;
+                    const dist = Math.abs(e.clientY - center);
+                    if (dist < nearestDist) { nearestDist = dist; nearest = r; }
+                }
+                if (nearest) {
+                    destIdx = parseInt(nearest.dataset.idx);
+                    // Live highlight on target row
+                    if (nearest !== lastHighlit) {
+                        clearHighlight();
+                        if (nearest !== srcRow) nearest.style.boxShadow = '0 0 0 2px var(--accent)';
+                        lastHighlit = nearest;
                     }
                 }
             }
@@ -541,12 +559,16 @@
                 document.removeEventListener('mouseup', onUp);
                 srcRow.style.opacity = '';
                 srcRow.style.outline = '';
+                clearHighlight();
 
                 if (destIdx !== srcIdx) {
                     const moved = _fieldSchemas.splice(srcIdx, 1)[0];
                     _fieldSchemas.splice(destIdx, 0, moved);
+                    // Update displayOrder on the in-memory objects so renderFieldSchemaList's
+                    // sort uses the new order, not the stale pre-drag values.
+                    _fieldSchemas.forEach((s, i) => { s.displayOrder = i; });
                     await Promise.all(
-                        _fieldSchemas.map((s, i) => WorkbenchDB.saveFieldSchema({ ...s, displayOrder: i }))
+                        _fieldSchemas.map(s => WorkbenchDB.saveFieldSchema(s))
                     );
                 }
                 renderFieldSchemaList(_fieldSchemas);
@@ -556,6 +578,7 @@
             document.addEventListener('mouseup', onUp);
         }, { signal });
     }
+
 
 
     // ─── Field Schema Builder ─────────────────────────────────────────────────────
