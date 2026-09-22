@@ -498,12 +498,47 @@
         WorkbenchApp.activateTab('execution');
     }
 
+    // ─── Field Schema Drag Reorder ────────────────────────────────────────────────
+
+    function setupFieldSchemaDrag() {
+        const rows = document.querySelectorAll('#field-schema-list [data-schema-id]');
+        let dragSrc = null;
+
+        rows.forEach(row => {
+            row.addEventListener('dragstart', e => {
+                dragSrc = row;
+                row.classList.add('dragging');
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', row.dataset.idx);
+            });
+            row.addEventListener('dragend', () => row.classList.remove('dragging'));
+            row.addEventListener('dragover', e => {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+            });
+            row.addEventListener('drop', async e => {
+                e.preventDefault();
+                if (dragSrc === row) return;
+                const srcIdx = parseInt(e.dataTransfer.getData('text/plain'));
+                const destIdx = parseInt(row.dataset.idx);
+                // Reorder the local array
+                const moved = _fieldSchemas.splice(srcIdx, 1)[0];
+                _fieldSchemas.splice(destIdx, 0, moved);
+                // Persist new displayOrder for every schema
+                await Promise.all(
+                    _fieldSchemas.map((s, i) => WorkbenchDB.saveFieldSchema({ ...s, displayOrder: i }))
+                );
+                renderFieldSchemaList(_fieldSchemas);
+            });
+        });
+    }
+
     // ─── Field Schema Builder ─────────────────────────────────────────────────────
 
     let _fieldSchemas = [];
 
     async function renderFieldSchemaList(schemas) {
-        _fieldSchemas = schemas || [];
+        _fieldSchemas = (schemas || []).slice().sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
         const container = document.getElementById('field-schema-list');
         if (!container) return;
 
@@ -513,8 +548,8 @@
         }
 
         container.innerHTML = _fieldSchemas.map((s, idx) => `
-      <div class="subtest-card flex-row align-center" data-schema-id="${s.id}">
-        <span class="subtest-drag-handle">≡</span>
+      <div class="subtest-card flex-row align-center" data-schema-id="${s.id}" data-idx="${idx}" draggable="true">
+        <span class="subtest-drag-handle" style="cursor:grab;">≡</span>
         <div class="flex-1" style="min-width:0;">
           <div style="font-weight:600; font-size:13px; color:var(--text-primary); display:flex; align-items:center; gap:8px;">
             <span>${escapeHtml(s.name)}</span>
@@ -529,6 +564,8 @@
         </div>
       </div>
     `).join('');
+
+        setupFieldSchemaDrag();
     }
 
     function onFieldTypeChange(type) {
