@@ -506,48 +506,55 @@
         const container = document.getElementById('field-schema-list');
         if (!container) return;
 
-        // Tear down any previous listeners from the last render
+        // Tear down previous listeners
         if (_fieldDragAbort) _fieldDragAbort.abort();
         _fieldDragAbort = new AbortController();
-        const opts = { signal: _fieldDragAbort.signal };
+        const { signal } = _fieldDragAbort;
 
-        let dragSrc = null;
+        container.addEventListener('mousedown', e => {
+            const handle = e.target.closest('.subtest-drag-handle');
+            if (!handle) return;
+            const srcRow = handle.closest('[data-schema-id]');
+            if (!srcRow) return;
+            e.preventDefault(); // prevent text selection during drag
 
-        // Use container-level delegation so dragover/drop fire even when
-        // the pointer is over a child element (badge, button, text span).
-        container.addEventListener('dragstart', e => {
-            const row = e.target.closest('[data-schema-id]');
-            if (!row) return;
-            dragSrc = row;
-            row.classList.add('dragging');
-            e.dataTransfer.effectAllowed = 'move';
-            e.dataTransfer.setData('text/plain', row.dataset.idx);
-        }, opts);
+            const srcIdx = parseInt(srcRow.dataset.idx);
+            srcRow.style.opacity = '0.45';
+            srcRow.style.outline = '2px dashed var(--accent)';
 
-        container.addEventListener('dragend', e => {
-            const row = e.target.closest('[data-schema-id]');
-            if (row) row.classList.remove('dragging');
-            dragSrc = null;
-        }, opts);
+            let destIdx = srcIdx;
 
-        container.addEventListener('dragover', e => {
-            e.preventDefault();
-            e.dataTransfer.dropEffect = 'move';
-        }, opts);
+            function onMove(e) {
+                // Find which row the pointer is currently over
+                const rows = [...container.querySelectorAll('[data-schema-id]')];
+                for (const r of rows) {
+                    const rect = r.getBoundingClientRect();
+                    if (e.clientY >= rect.top && e.clientY <= rect.bottom) {
+                        destIdx = parseInt(r.dataset.idx);
+                        break;
+                    }
+                }
+            }
 
-        container.addEventListener('drop', async e => {
-            e.preventDefault();
-            const destRow = e.target.closest('[data-schema-id]');
-            if (!destRow || !dragSrc || dragSrc === destRow) return;
-            const srcIdx = parseInt(dragSrc.dataset.idx);
-            const destIdx = parseInt(destRow.dataset.idx);
-            const moved = _fieldSchemas.splice(srcIdx, 1)[0];
-            _fieldSchemas.splice(destIdx, 0, moved);
-            await Promise.all(
-                _fieldSchemas.map((s, i) => WorkbenchDB.saveFieldSchema({ ...s, displayOrder: i }))
-            );
-            renderFieldSchemaList(_fieldSchemas);
-        }, opts);
+            async function onUp() {
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onUp);
+                srcRow.style.opacity = '';
+                srcRow.style.outline = '';
+
+                if (destIdx !== srcIdx) {
+                    const moved = _fieldSchemas.splice(srcIdx, 1)[0];
+                    _fieldSchemas.splice(destIdx, 0, moved);
+                    await Promise.all(
+                        _fieldSchemas.map((s, i) => WorkbenchDB.saveFieldSchema({ ...s, displayOrder: i }))
+                    );
+                }
+                renderFieldSchemaList(_fieldSchemas);
+            }
+
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+        }, { signal });
     }
 
 
@@ -566,7 +573,7 @@
         }
 
         container.innerHTML = _fieldSchemas.map((s, idx) => `
-      <div class="subtest-card flex-row align-center" data-schema-id="${s.id}" data-idx="${idx}" draggable="true">
+      <div class="subtest-card flex-row align-center" data-schema-id="${s.id}" data-idx="${idx}">
         <span class="subtest-drag-handle" style="cursor:grab;">≡</span>
         <div class="flex-1" style="min-width:0;">
           <div style="font-weight:600; font-size:13px; color:var(--text-primary); display:flex; align-items:center; gap:8px;">
